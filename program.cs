@@ -578,7 +578,7 @@ public class AIBotService
 
         var lowerMessage = message.ToLower().Trim();
 
-        // ⭐ MANEJO DE CONTEXTO - Flujo de conversación
+        // MANEJO DE CONTEXTO - Flujo de conversación
         if (conversation.Context.ContainsKey("esperando_opcion"))
         {
             return await HandleMenuOption(lowerMessage, phoneNumber, conversation);
@@ -598,12 +598,12 @@ public class AIBotService
         if (lowerMessage.Contains("hola") || lowerMessage.Contains("buenas"))
         {
             var welcomeMsg = "¡Hola! 👋 Bienvenido a nuestro servicio de salud.\n\n" +
-                           "Por favor selecciona una opción:\n" +
-                           "1️⃣ 📹 Agendar VideoLlamada\n" +
-                           "2️⃣ 📋 Registrar Historia Clínica\n" +
-                           "3️⃣ 📅 Consultar Citas Programadas\n" +
-                           "4️⃣ 👤 Hablar con un Agente\n\n" +
-                           "Escribe el número de tu opción (1, 2, 3 o 4)";
+                        "Por favor selecciona una opción:\n" +
+                        "1️⃣ 📹 Agendar VideoLlamada\n" +
+                        "2️⃣ 📋 Registrar Historia Clínica\n" +
+                        "3️⃣ 📅 Consultar Citas Programadas\n" +
+                        "4️⃣ 👤 Hablar con un Agente\n\n" +
+                        "Escribe el número de tu opción (1, 2, 3 o 4)";
             
             conversation.Context["esperando_opcion"] = "menu_principal";
             await _whatsAppService.SendMessage(phoneNumber, welcomeMsg);
@@ -633,52 +633,25 @@ public class AIBotService
         {
             case "1":
                 response = "📹 *VideoLlamada*\n\n" +
-                          "Para agendar una videollamada, necesito validar tus datos.\n" +
-                          "Por favor ingresa tu número de documento:";
+                        "Para agendar una videollamada, necesito validar tus datos.\n" +
+                        "Por favor ingresa tu número de documento:";
                 conversation.Context["solicitando_documento"] = "videollamada";
                 conversation.Context.Remove("esperando_opcion");
                 break;
 
             case "2":
                 response = "📋 *Registro de Historia Clínica*\n\n" +
-                          "Vamos a registrar tus datos.\n" +
-                          "Por favor ingresa tu número de documento:";
+                        "Vamos a registrar tus datos.\n" +
+                        "Por favor ingresa tu número de documento:";
                 conversation.Context["solicitando_documento"] = "historia";
                 conversation.Context.Remove("esperando_opcion");
                 break;
 
             case "3":
                 response = "📅 *Consulta de Citas*\n\n" +
-                          "Consultando tus citas programadas...";
-                await _whatsAppService.SendMessage(phoneNumber, response);
-                
-                var citas = await _apiService.ObtenerCitasPorTelefono(phoneNumber);
-                if (citas.Any())
-                {
-                    // response = "📋 *Tus citas programadas:*\n\n";
-                    // foreach (var cita in citas.Take(5))
-                    // {
-                    //     response += $"🗓️ {cita.FechaHora:dd/MM/yyyy HH:mm}\n" +
-                    //               $"   👨‍⚕️ Dr. {cita.Doctor}\n" +
-                    //               $"   🏥 {cita.Especialidad}\n" +
-                    //               $"   ✅ Estado: {cita.Estado}\n\n";
-                    // }
-
-                    response = "📋 *Tus citas programadas:*\n\n";
-                    foreach (var cita in citas.Take(5))
-                    {
-                        response += $"🗓️ {cita.Fecha:dd/MM/yyyy}\n" +
-                                  $"🗓️ {cita.Hora:HH:mm}\n" +
-                                  $"   👨‍⚕️ Dr. {cita.Medico}\n" +
-                                  $"   🏥 {cita.citaControl}\n" +
-                                  $"   ✅ Observacion: {cita.Observacion}\n\n";
-                    }
-                }
-                else
-                {
-                    response = "No tienes citas programadas actualmente.";
-                }
-                conversation.Context.Clear();
+                        "Por favor ingresa tu número de documento para consultar tus citas:";
+                conversation.Context["solicitando_documento"] = "consultar_citas";
+                conversation.Context.Remove("esperando_opcion");
                 break;
 
             case "4":
@@ -695,7 +668,7 @@ public class AIBotService
         await _whatsAppService.SendMessage(phoneNumber, response);
         return (true, response);
     }
-
+ 
     private async Task<(bool, string?)> HandleDocumentRequest(string documento, string phoneNumber, Conversation conversation)
     {
         var tipoSolicitud = conversation.Context["solicitando_documento"];
@@ -705,15 +678,10 @@ public class AIBotService
 
         if (paciente != null)
         {
-            // var response = $"✅ ¡Hola {paciente.Nombre}!\n\n" +
-            //              $"Datos encontrados:\n" +
-            //              $"📄 Documento: {paciente.Documento}\n" +
-            //              $"📧 Email: {paciente.Email}\n\n";
-
             var response = $"✅ ¡Hola {paciente.NombrePaciente} {paciente.ApellidoPaciente}!\n\n" +
-                     $"Datos encontrados:\n" +
-                     $"📄 Documento: {paciente.NoIdentificacion}\n" +
-                     $"📋 Caso No: {paciente.NoCaso}\n\n";
+                        $"Datos encontrados:\n" +
+                        $"📄 Documento: {paciente.NoIdentificacion}\n" +
+                        $"📋 Caso No: {paciente.NoCaso}\n\n";
 
             if (tipoSolicitud == "videollamada")
             {
@@ -724,6 +692,36 @@ public class AIBotService
             {
                 response += "Ya tienes historia clínica registrada.\n¿Deseas actualizarla? (si/no)";
                 conversation.Context["actualizar_historia"] = paciente.NoCaso;
+            }
+            else if (tipoSolicitud == "consultar_citas")
+            {
+                // Consultar citas usando el documento
+                var citas = await _apiService.ObtenerCitasPorTelefono(documento);
+                
+                if (citas.Any())
+                {
+                    response = "📋 *Tus citas programadas:*\n\n";
+                    foreach (var cita in citas.Take(5))
+                    {
+                        response += $"📅 Fecha: {cita.Fecha}\n" +
+                                $"🕐 Hora: {cita.Hora}\n" +
+                                $"👨‍⚕️ Dr. {cita.Medico}\n" +
+                                $"🏥 {cita.citaControl}\n";
+                        
+                        if (!string.IsNullOrEmpty(cita.Observacion))
+                        {
+                            response += $"📝 Observación: {cita.Observacion}\n";
+                        }
+                        
+                        response += "\n";
+                    }
+                }
+                else
+                {
+                    response = "No tienes citas programadas actualmente. 📅";
+                }
+                
+                conversation.Context.Clear();
             }
 
             await _whatsAppService.SendMessage(phoneNumber, response);
@@ -736,7 +734,7 @@ public class AIBotService
             if (tipoSolicitud == "historia")
             {
                 response += "Vamos a crear tu historia clínica.\n" +
-                          "Ingresa tu nombre completo:";
+                        "Ingresa tu nombre completo:";
                 conversation.Context["registrando_historia"] = "nombre";
                 conversation.Context["documento_nuevo"] = documento;
             }
@@ -798,12 +796,12 @@ public class AIBotService
                 if (success)
                 {
                     response = "✅ *Historia clínica creada exitosamente!*\n\n" +
-                             "Tus datos han sido registrados correctamente.";
+                            "Tus datos han sido registrados correctamente.";
                 }
                 else
                 {
                     response = "❌ Hubo un error al guardar tus datos.\n" +
-                             "Un agente te contactará para ayudarte.";
+                            "Un agente te contactará para ayudarte.";
                 }
 
                 conversation.Context.Clear();
