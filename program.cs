@@ -116,7 +116,7 @@ public class Paciente
     public string NoIdentificacion { get; set; } = "";
     public string NombrePaciente { get; set; } = "";
     public string ApellidoPaciente { get; set; } = "";
-    public string Paciente { get; set; } = "";
+    public string DatosPaciente { get; set; } = "";
 }
 
 public class NuevoPaciente
@@ -717,7 +717,7 @@ public class AIBotService
             //              $"📄 Documento: {paciente.Documento}\n" +
             //              $"📧 Email: {paciente.Email}\n\n";
 
-            var response = $"✅ ¡Hola {paciente.Paciente}!\n\n" +
+            var response = $"✅ ¡Hola {paciente.DatosPaciente}!\n\n" +
                          $"Datos encontrados:\n" +
                          $"📄 Documento: {paciente.NoIdentificacion}\n" +
                          $"📧 Caso No: {paciente.NoCaso}\n\n";
