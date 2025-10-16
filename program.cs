@@ -723,7 +723,7 @@ public class AIBotService
             else if (tipoSolicitud == "historia")
             {
                 response += "Ya tienes historia clínica registrada.\n¿Deseas actualizarla? (si/no)";
-                conversation.Context["actualizar_historia"] = paciente.Id;
+                conversation.Context["actualizar_historia"] = paciente.NoCaso;
             }
 
             await _whatsAppService.SendMessage(phoneNumber, response);
