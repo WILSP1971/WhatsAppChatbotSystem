@@ -28,7 +28,6 @@ public class WebhookController : ControllerBase
         _hubContext = hubContext;
     }
 
-    // Verificación del webhook (GET)
     [HttpGet("whatsapp")]
     public IActionResult VerifyWebhook([FromQuery(Name = "hub.mode")] string mode,
                                        [FromQuery(Name = "hub.verify_token")] string token,
@@ -46,7 +45,6 @@ public class WebhookController : ControllerBase
         return Forbid();
     }
 
-    // Recepción de mensajes (POST)
     [HttpPost("whatsapp")]
     public async Task<IActionResult> ReceiveMessage([FromBody] JsonElement body)
     {
@@ -63,7 +61,58 @@ public class WebhookController : ControllerBase
                 var message = messages[0];
                 var from = message.GetProperty("from").GetString() ?? "";
                 var messageId = message.GetProperty("id").GetString() ?? "";
-                var messageBody = message.GetProperty("text").GetProperty("body").GetString() ?? "";
+                
+                // ⭐ Obtener tipo de mensaje
+                var messageType = message.GetProperty("type").GetString() ?? "text";
+                
+                string messageBody = "";
+                string? mediaUrl = null;
+                string? mediaType = null;
+
+                // ⭐ Procesar diferentes tipos de mensajes
+                switch (messageType)
+                {
+                    case "text":
+                        messageBody = message.GetProperty("text").GetProperty("body").GetString() ?? "";
+                        break;
+                    
+                    case "image":
+                        if (message.TryGetProperty("image", out var image))
+                        {
+                            mediaUrl = image.GetProperty("id").GetString(); // ID de media de WhatsApp
+                            messageBody = image.TryGetProperty("caption", out var caption) 
+                                ? caption.GetString() ?? "Imagen recibida" 
+                                : "Imagen recibida";
+                            mediaType = "image";
+                        }
+                        break;
+                    
+                    case "document":
+                        if (message.TryGetProperty("document", out var document))
+                        {
+                            mediaUrl = document.GetProperty("id").GetString();
+                            var filename = document.TryGetProperty("filename", out var fn) 
+                                ? fn.GetString() ?? "documento" 
+                                : "documento";
+                            messageBody = $"Documento recibido: {filename}";
+                            mediaType = "document";
+                        }
+                        break;
+                    
+                    case "audio":
+                        messageBody = "Audio recibido";
+                        mediaType = "audio";
+                        break;
+                    
+                    case "video":
+                        messageBody = "Video recibido";
+                        mediaType = "video";
+                        break;
+                    
+                    default:
+                        messageBody = $"Mensaje de tipo: {messageType}";
+                        break;
+                }
 
                 Console.WriteLine($"💬 Mensaje de {from}: {messageBody}");
 
@@ -76,18 +125,19 @@ public class WebhookController : ControllerBase
                     Content = messageBody,
                     Type = MessageType.Customer,
                     Sender = conversation.CustomerName,
-                    MessageId = messageId
+                    MessageId = messageId,
+                    MediaUrl = mediaUrl,
+                    MediaType = mediaType
                 };
 
                 _conversationManager.AddMessage(conversation.ConversationId, customerMessage);
 
-                // ⭐ NOTIFICAR A TODOS LOS OPERADORES DEL NUEVO MENSAJE
+                // Notificar a todos los operadores del nuevo mensaje
                 await _hubContext.Clients.All.SendAsync("NewMessageReceived", conversation.ConversationId, customerMessage);
 
-                // ⭐ VERIFICAR SI HAY UN OPERADOR ATENDIENDO
+                // Verificar si hay un operador atendiendo
                 if (conversation.Status == ConversationStatus.Active && !string.IsNullOrEmpty(conversation.AssignedOperator))
                 {
-                    // Hay un operador atendiendo - NO responder automáticamente
                     Console.WriteLine($"👤 Operador activo - Bot NO responde");
                     
                     // Notificar al operador específico
@@ -96,46 +146,50 @@ public class WebhookController : ControllerBase
                 }
                 else
                 {
-                    // No hay operador - intentar respuesta automática del bot
-                    var (handled, botResponse) = await _aiBotService.ProcessMessage(messageBody, from);
-
-                    if (handled)
+                    // ⭐ Solo procesar con bot si es mensaje de texto
+                    if (messageType == "text")
                     {
-                        // El bot manejó la consulta
-                        conversation.Status = ConversationStatus.BotHandling;
-                        
-                        var botMessage = new Message
-                        {
-                            Content = botResponse ?? "",
-                            Type = MessageType.Bot,
-                            Sender = "Bot Automático"
-                        };
-                        
-                        _conversationManager.AddMessage(conversation.ConversationId, botMessage);
-                        
-                        // Notificar a operadores
-                        await _hubContext.Clients.All.SendAsync("BotHandledMessage", conversation);
-                    }
-                    else
-                    {
-                        // Requiere atención humana
-                        conversation.Status = ConversationStatus.Waiting;
+                        var (handled, botResponse) = await _aiBotService.ProcessMessage(messageBody, from);
 
-                        // Intentar asignar automáticamente a operador disponible
-                        var availableOperator = _conversationManager.GetAvailableOperator();
-                        
-                        if (availableOperator != null)
+                        if (handled)
                         {
-                            _conversationManager.AssignOperator(conversation.ConversationId, availableOperator);
-                            await _hubContext.Clients.Client(availableOperator)
-                                .SendAsync("NewConversationAssigned", conversation);
+                            conversation.Status = ConversationStatus.BotHandling;
+                            
+                            var botMessage = new Message
+                            {
+                                Content = botResponse ?? "",
+                                Type = MessageType.Bot,
+                                Sender = "Bot Automático"
+                            };
+                            
+                            _conversationManager.AddMessage(conversation.ConversationId, botMessage);
+                            await _hubContext.Clients.All.SendAsync("BotHandledMessage", conversation);
                         }
                         else
                         {
-                            // Notificar a todos los operadores que hay una conversación esperando
-                            await _hubContext.Clients.All
-                                .SendAsync("NewConversationWaiting", conversation);
+                            conversation.Status = ConversationStatus.Waiting;
+                            var availableOperator = _conversationManager.GetAvailableOperator();
+                            
+                            if (availableOperator != null)
+                            {
+                                _conversationManager.AssignOperator(conversation.ConversationId, availableOperator);
+                                await _hubContext.Clients.Client(availableOperator)
+                                    .SendAsync("NewConversationAssigned", conversation);
+                            }
+                            else
+                            {
+                                await _hubContext.Clients.All
+                                    .SendAsync("NewConversationWaiting", conversation);
+                            }
                         }
+                    }
+                    else
+                    {
+                        // Si es multimedia, transferir a operador automáticamente
+                        conversation.Status = ConversationStatus.Waiting;
+                        await _whatsAppService.SendMessage(from, "He recibido tu archivo. Un agente te atenderá pronto. 👤");
+                        
+                        await _hubContext.Clients.All.SendAsync("NewConversationWaiting", conversation);
                     }
                 }
             }
@@ -146,7 +200,7 @@ public class WebhookController : ControllerBase
         {
             Console.WriteLine($"❌ Error procesando webhook: {ex.Message}");
             Console.WriteLine($"Stack: {ex.StackTrace}");
-            return Ok(); // WhatsApp espera 200 OK siempre
+            return Ok();
         }
     }
 

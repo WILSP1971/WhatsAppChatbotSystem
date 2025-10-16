@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Operadores - WhatsApp Chatbot</title>
     
-    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     
     <style>
@@ -54,7 +52,6 @@
             overflow-y: auto;
             padding: 20px;
             background: #e5ddd5;
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect fill="%23e5ddd5" width="100" height="100"/><circle fill="%23d1c4b8" cx="10" cy="10" r="1"/></svg>');
         }
         
         .message {
@@ -79,7 +76,6 @@
             max-width: 65%;
             padding: 10px 15px;
             border-radius: 8px;
-            position: relative;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
         
@@ -118,10 +114,29 @@
             border-top: 1px solid #dee2e6;
         }
         
-        .status-badge {
+        .media-preview {
+            max-width: 200px;
+            max-height: 200px;
+            margin-top: 10px;
+            border-radius: 8px;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        
+        .file-input-wrapper input[type=file] {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            left: -9999px;
+        }
+        
+        .btn-file {
+            cursor: pointer;
+        }
+        
+        .status-badge {
             padding: 5px 10px;
             border-radius: 20px;
             font-size: 0.75em;
@@ -147,10 +162,6 @@
             50% { opacity: 0.5; }
         }
         
-        .notification-sound {
-            display: none;
-        }
-        
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -165,7 +176,6 @@
     </style>
 </head>
 <body>
-    <!-- Barra Superior -->
     <nav class="navbar navbar-dark bg-success">
         <div class="container-fluid">
             <span class="navbar-brand mb-0 h1">
@@ -178,10 +188,8 @@
         </div>
     </nav>
 
-    <!-- Contenedor Principal -->
     <div class="container-fluid mt-3">
         <div class="row">
-            <!-- Barra Lateral de Conversaciones -->
             <div class="col-md-3 p-0">
                 <div class="card">
                     <div class="card-header bg-light">
@@ -199,7 +207,6 @@
                 </div>
             </div>
 
-            <!-- Área de Chat -->
             <div class="col-md-9">
                 <div class="card chat-container">
                     <div class="card-header bg-light d-flex justify-content-between align-items-center">
@@ -209,9 +216,15 @@
                             </h6>
                             <small class="text-muted" id="currentCustomerPhone"></small>
                         </div>
-                        <button class="btn btn-sm btn-outline-danger" id="closeConversationBtn" style="display: none;">
-                            <i class="bi bi-x-circle"></i> Cerrar Chat
-                        </button>
+                        <div>
+                            <!-- ⭐ NUEVO: Botón para devolver al bot -->
+                            <button class="btn btn-sm btn-outline-primary me-2" id="releaseToBotBtn" style="display: none;" title="Devolver control al bot">
+                                <i class="bi bi-robot"></i> Devolver al Bot
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" id="closeConversationBtn" style="display: none;">
+                                <i class="bi bi-x-circle"></i> Cerrar Chat
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="messages-area" id="messagesArea">
@@ -222,6 +235,30 @@
                     </div>
                     
                     <div class="input-area">
+                        <!-- ⭐ NUEVO: Botones para adjuntar archivos -->
+                        <div class="mb-2">
+                            <div class="btn-group" role="group">
+                                <div class="file-input-wrapper">
+                                    <label class="btn btn-sm btn-outline-secondary btn-file" for="imageInput">
+                                        <i class="bi bi-image"></i> Imagen
+                                    </label>
+                                    <input type="file" id="imageInput" accept="image/*" disabled>
+                                </div>
+                                <div class="file-input-wrapper ms-2">
+                                    <label class="btn btn-sm btn-outline-secondary btn-file" for="documentInput">
+                                        <i class="bi bi-file-earmark"></i> Documento
+                                    </label>
+                                    <input type="file" id="documentInput" accept=".pdf,.doc,.docx,.txt" disabled>
+                                </div>
+                            </div>
+                            <div id="filePreview" class="mt-2" style="display: none;">
+                                <small class="text-muted" id="fileName"></small>
+                                <button class="btn btn-sm btn-link text-danger" id="clearFile">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
                         <div class="input-group">
                             <input type="text" class="form-control" id="messageInput" 
                                    placeholder="Escribe tu mensaje..." disabled>
@@ -238,7 +275,6 @@
         </div>
     </div>
 
-    <!-- Modal de Inicio -->
     <div class="modal fade" id="loginModal" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -263,14 +299,11 @@
         </div>
     </div>
 
-    <!-- Audio para notificaciones -->
-    <audio id="notificationSound" class="notification-sound">
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZMA0PVanr7aZVEwlDm+Lxv24jBDWL0fPUgTUGHG3A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLgwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFA==" type="audio/wav">
+    <audio id="notificationSound" style="display:none;">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZMA0PVanr7aZVEwlDm+Lxv24jBDWL0fPUgTUGHG3A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLgwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFA==" type="audio/wav">
     </audio>
 
-    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- SignalR -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.0/signalr.min.js"></script>
     
     <script>
@@ -278,8 +311,9 @@
         let currentConversationId = null;
         let operatorId = null;
         let conversations = {};
+        let selectedFile = null;
+        let selectedFileType = null;
 
-        // Inicializar al cargar la página
         document.addEventListener('DOMContentLoaded', function() {
             const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
             loginModal.show();
@@ -289,9 +323,16 @@
             document.getElementById('messageInput').addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') sendMessage();
             });
+            
+            // ⭐ NUEVO: Eventos para archivos
+            document.getElementById('imageInput').addEventListener('change', handleImageSelect);
+            document.getElementById('documentInput').addEventListener('change', handleDocumentSelect);
+            document.getElementById('clearFile').addEventListener('click', clearFileSelection);
+            
+            // ⭐ NUEVO: Evento para devolver al bot
+            document.getElementById('releaseToBotBtn').addEventListener('click', releaseToBot);
         });
 
-        // Conectar operador
         async function connectOperator() {
             const operatorName = document.getElementById('operatorNameInput').value.trim();
             
@@ -301,20 +342,16 @@
             }
 
             try {
-                // Crear conexión SignalR
                 connection = new signalR.HubConnectionBuilder()
                     .withUrl("/chatHub")
                     .withAutomaticReconnect()
                     .build();
 
-                // Configurar eventos
                 setupSignalREvents();
 
-                // Iniciar conexión
                 await connection.start();
                 console.log('✅ Conectado a SignalR');
 
-                // Registrar operador
                 await connection.invoke("RegisterOperator", operatorName);
                 
                 document.getElementById('operatorName').textContent = operatorName;
@@ -322,11 +359,9 @@
                 document.getElementById('connectionStatus').classList.remove('status-offline');
                 document.getElementById('connectionStatus').classList.add('status-online');
 
-                // Cerrar modal
                 const loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
                 loginModal.hide();
 
-                // Solicitar conversaciones en espera
                 await connection.invoke("SendWaitingConversations");
 
             } catch (error) {
@@ -335,7 +370,6 @@
             }
         }
 
-        // Configurar eventos de SignalR
         function setupSignalREvents() {
             connection.on("OperatorRegistered", (id) => {
                 operatorId = id;
@@ -384,8 +418,6 @@
                 addConversationToList(conversation, false);
             });
 
-            // Agregar DENTRO de setupSignalREvents(), después de los otros eventos:
-
             connection.on("NewMessageReceived", (conversationId, message) => {
                 console.log('Nuevo mensaje recibido:', message);
                 if (conversations[conversationId]) {
@@ -393,7 +425,6 @@
                     if (currentConversationId === conversationId) {
                         displayMessage(message);
                     }
-                    // Actualizar la vista previa en la lista
                     updateConversationPreview(conversationId, message.content);
                 }
             });
@@ -408,9 +439,29 @@
                     }
                 }
             });
+
+            // ⭐ NUEVO: Evento para conversación devuelta al bot
+            connection.on("ConversationReleasedToBot", (conversationId) => {
+                const element = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+                if (element) {
+                    element.remove();
+                }
+                
+                if (currentConversationId === conversationId) {
+                    currentConversationId = null;
+                    document.getElementById('messageInput').disabled = true;
+                    document.getElementById('sendBtn').disabled = true;
+                    document.getElementById('releaseToBotBtn').style.display = 'none';
+                    document.getElementById('closeConversationBtn').style.display = 'none';
+                    
+                    const messagesArea = document.getElementById('messagesArea');
+                    messagesArea.innerHTML = '<div class="empty-state"><i class="bi bi-chat-left-text"></i><p>Selecciona una conversación para comenzar</p></div>';
+                }
+                
+                console.log('✅ Conversación devuelta al bot:', conversationId);
+            });
         }
 
-        // Agregar conversación a la lista
         function addConversationToList(conversation, isWaiting) {
             if (conversations[conversation.conversationId]) return;
             
@@ -418,7 +469,6 @@
 
             const listContainer = document.getElementById('conversationsList');
             
-            // Remover empty state
             const emptyState = listContainer.querySelector('.empty-state');
             if (emptyState) emptyState.remove();
 
@@ -446,19 +496,16 @@
             updateWaitingCount();
         }
 
-        // Seleccionar conversación
         async function selectConversation(conversationId) {
             const conversation = conversations[conversationId];
             if (!conversation) return;
 
-            // Si está en espera, tomarla
-            if (conversation.status === 0) { // ConversationStatus.Waiting
+            if (conversation.status === 0) {
                 await connection.invoke("TakeConversation", conversationId);
             }
 
             currentConversationId = conversationId;
 
-            // Actualizar UI
             document.querySelectorAll('.conversation-item').forEach(el => {
                 el.classList.remove('active');
             });
@@ -473,16 +520,18 @@
                 `<i class="bi bi-person-circle"></i> ${conversation.customerName}`;
             document.getElementById('currentCustomerPhone').textContent = conversation.phoneNumber;
             
-            // Habilitar input
             document.getElementById('messageInput').disabled = false;
             document.getElementById('sendBtn').disabled = false;
             document.getElementById('closeConversationBtn').style.display = 'block';
+            document.getElementById('releaseToBotBtn').style.display = 'block';
+            
+            // ⭐ Habilitar inputs de archivos
+            document.getElementById('imageInput').disabled = false;
+            document.getElementById('documentInput').disabled = false;
 
-            // Mostrar mensajes
             displayMessages(conversation.messages);
         }
 
-        // Mostrar mensajes
         function displayMessages(messages) {
             const messagesArea = document.getElementById('messagesArea');
             messagesArea.innerHTML = '';
@@ -494,25 +543,35 @@
             scrollToBottom();
         }
 
-        // Mostrar un mensaje
         function displayMessage(message) {
             const messagesArea = document.getElementById('messagesArea');
             
             let messageClass = 'customer';
             let senderName = message.sender;
             
-            if (message.type === 1) { // MessageType.Operator
+            if (message.type === 1) {
                 messageClass = 'operator';
-            } else if (message.type === 2) { // MessageType.Bot
+            } else if (message.type === 2) {
                 messageClass = 'bot';
                 senderName = '🤖 ' + senderName;
+            }
+
+            let contentHtml = escapeHtml(message.content);
+            
+            // ⭐ Mostrar multimedia si existe
+            if (message.mediaUrl) {
+                if (message.mediaType === 'image') {
+                    contentHtml += `<br><img src="${message.mediaUrl}" class="media-preview" alt="Imagen">`;
+                } else if (message.mediaType === 'document') {
+                    contentHtml += `<br><i class="bi bi-file-earmark"></i> <a href="${message.mediaUrl}" target="_blank">Ver documento</a>`;
+                }
             }
 
             const messageHtml = `
                 <div class="message ${messageClass}">
                     <div class="message-bubble">
                         <div class="message-sender">${senderName}</div>
-                        <div class="message-content">${escapeHtml(message.content)}</div>
+                        <div class="message-content">${contentHtml}</div>
                         <div class="message-time">${formatTime(message.timestamp)}</div>
                     </div>
                 </div>
@@ -522,12 +581,17 @@
             scrollToBottom();
         }
 
-        // Enviar mensaje
         async function sendMessage() {
             if (!currentConversationId) return;
 
             const messageInput = document.getElementById('messageInput');
             const message = messageInput.value.trim();
+
+            // ⭐ Enviar archivo si hay uno seleccionado
+            if (selectedFile) {
+                await sendFile();
+                return;
+            }
 
             if (!message) return;
 
@@ -541,7 +605,79 @@
             }
         }
 
-        // Funciones auxiliares
+        // ⭐ NUEVO: Manejar selección de imagen
+        function handleImageSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                selectedFileType = 'image';
+                document.getElementById('fileName').textContent = `📷 ${file.name}`;
+                document.getElementById('filePreview').style.display = 'block';
+            }
+        }
+
+        // ⭐ NUEVO: Manejar selección de documento
+        function handleDocumentSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                selectedFileType = 'document';
+                document.getElementById('fileName').textContent = `📄 ${file.name}`;
+                document.getElementById('filePreview').style.display = 'block';
+            }
+        }
+
+        // ⭐ NUEVO: Limpiar selección de archivo
+        function clearFileSelection() {
+            selectedFile = null;
+            selectedFileType = null;
+            document.getElementById('imageInput').value = '';
+            document.getElementById('documentInput').value = '';
+            document.getElementById('filePreview').style.display = 'none';
+        }
+
+        // ⭐ NUEVO: Enviar archivo
+        async function sendFile() {
+            if (!selectedFile || !currentConversationId) return;
+
+            try {
+                // En producción, aquí subirías el archivo a un servidor/CDN
+                // Por ahora simulamos con una URL
+                const fileUrl = URL.createObjectURL(selectedFile);
+                const caption = document.getElementById('messageInput').value.trim() || null;
+
+                if (selectedFileType === 'image') {
+                    await connection.invoke("SendImageToCustomer", currentConversationId, fileUrl, caption);
+                } else if (selectedFileType === 'document') {
+                    await connection.invoke("SendDocumentToCustomer", currentConversationId, fileUrl, selectedFile.name, caption);
+                }
+
+                document.getElementById('messageInput').value = '';
+                clearFileSelection();
+                
+                // ⚠️ NOTA: Para producción, necesitas subir el archivo a un servidor público
+                alert('⚠️ Nota: En producción, los archivos deben subirse a un servidor público (AWS S3, Cloudinary, etc.) para que WhatsApp pueda accederlos.');
+            } catch (error) {
+                console.error('Error al enviar archivo:', error);
+                alert('Error al enviar el archivo');
+            }
+        }
+
+        // ⭐ NUEVO: Devolver conversación al bot
+        async function releaseToBot() {
+            if (!currentConversationId) return;
+
+            if (confirm('¿Estás seguro de devolver esta conversación al bot? El bot continuará atendiendo al cliente automáticamente.')) {
+                try {
+                    await connection.invoke("ReleaseConversationToBot", currentConversationId);
+                    console.log('✅ Conversación devuelta al bot');
+                } catch (error) {
+                    console.error('Error al devolver al bot:', error);
+                    alert('Error al devolver la conversación al bot');
+                }
+            }
+        }
+
         function updateWaitingCount() {
             const waitingCount = document.querySelectorAll('.conversation-item.waiting').length;
             document.getElementById('waitingCount').textContent = waitingCount;
@@ -577,7 +713,6 @@
                 }
             }
         }
-
     </script>
 </body>
 </html>
