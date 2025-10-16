@@ -204,11 +204,12 @@ public class ApiIntegrationService
             //var client = CreateClient();
             //var response = await client.GetAsync($"/Pacientes/{documento}");
 
-          using var client = new HttpClient();
+            using var client = new HttpClient();
             client.BaseAddress = new Uri(_baseUrl);
 
-            string url = $"/Pacientes?CodigoEmp={_codigoEmpresa}&criterio={documento}";
-                    // ✅ LOGS DE DEPURACIÓN
+            string url = $"Pacientes?CodigoEmp={_codigoEmpresa}&criterio={documento}";
+
+            // ✅ LOGS DE DEPURACIÓN
             Console.WriteLine($"🔍 Buscando paciente...");
             Console.WriteLine($"   📍 Base URL: {_baseUrl}");
             Console.WriteLine($"   🏢 Código Empresa: {_codigoEmpresa}");
