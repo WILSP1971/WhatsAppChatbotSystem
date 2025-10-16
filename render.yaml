@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: whatsapp-chatbot
+    runtime: dotnet
+    buildCommand: dotnet restore && dotnet publish -c Release -o ./publish
+    startCommand: cd publish && dotnet WhatsAppChatbotSystem.dll
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:10000
+      - key: WhatsApp__AccessToken
+        sync: false
+      - key: WhatsApp__PhoneNumberId
+        sync: false
+      - key: WhatsApp__VerifyToken
+        sync: false

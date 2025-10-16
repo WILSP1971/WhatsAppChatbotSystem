@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Operadores - WhatsApp Chatbot</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #f0f2f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .chat-container {
+            height: calc(100vh - 160px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .conversations-sidebar {
+            height: calc(100vh - 120px);
+            overflow-y: auto;
+            border-right: 1px solid #dee2e6;
+            background: white;
+        }
+        
+        .conversation-item {
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .conversation-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .conversation-item.active {
+            background-color: #e3f2fd;
+            border-left: 3px solid #2196F3;
+        }
+        
+        .conversation-item.waiting {
+            background-color: #fff3cd;
+        }
+        
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #e5ddd5;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect fill="%23e5ddd5" width="100" height="100"/><circle fill="%23d1c4b8" cx="10" cy="10" r="1"/></svg>');
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-end;
+        }
+        
+        .message.customer {
+            justify-content: flex-start;
+        }
+        
+        .message.operator {
+            justify-content: flex-end;
+        }
+        
+        .message.bot {
+            justify-content: flex-start;
+        }
+        
+        .message-bubble {
+            max-width: 65%;
+            padding: 10px 15px;
+            border-radius: 8px;
+            position: relative;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        .message.customer .message-bubble {
+            background: white;
+            border-bottom-left-radius: 2px;
+        }
+        
+        .message.operator .message-bubble {
+            background: #dcf8c6;
+            border-bottom-right-radius: 2px;
+        }
+        
+        .message.bot .message-bubble {
+            background: #e3f2fd;
+            border-bottom-left-radius: 2px;
+        }
+        
+        .message-sender {
+            font-size: 0.8em;
+            color: #667781;
+            margin-bottom: 3px;
+            font-weight: 600;
+        }
+        
+        .message-time {
+            font-size: 0.75em;
+            color: #667781;
+            margin-top: 3px;
+            text-align: right;
+        }
+        
+        .input-area {
+            padding: 15px;
+            background: white;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .status-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+        
+        .status-online {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .status-offline {
+            background: #9e9e9e;
+            color: white;
+        }
+        
+        .badge-waiting {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .notification-sound {
+            display: none;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #667781;
+        }
+        
+        .empty-state i {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <!-- Barra Superior -->
+    <nav class="navbar navbar-dark bg-success">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-whatsapp"></i> Panel de Operadores WhatsApp
+            </span>
+            <div class="d-flex align-items-center">
+                <span class="text-white me-3" id="operatorName">Operador</span>
+                <span class="status-badge status-offline" id="connectionStatus">Desconectado</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Contenedor Principal -->
+    <div class="container-fluid mt-3">
+        <div class="row">
+            <!-- Barra Lateral de Conversaciones -->
+            <div class="col-md-3 p-0">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">
+                            <i class="bi bi-chat-dots"></i> Conversaciones
+                            <span class="badge bg-warning float-end" id="waitingCount">0</span>
+                        </h6>
+                    </div>
+                    <div class="conversations-sidebar" id="conversationsList">
+                        <div class="empty-state">
+                            <i class="bi bi-inbox"></i>
+                            <p>No hay conversaciones activas</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Área de Chat -->
+            <div class="col-md-9">
+                <div class="card chat-container">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0" id="currentCustomerName">
+                                <i class="bi bi-person-circle"></i> Selecciona una conversación
+                            </h6>
+                            <small class="text-muted" id="currentCustomerPhone"></small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger" id="closeConversationBtn" style="display: none;">
+                            <i class="bi bi-x-circle"></i> Cerrar Chat
+                        </button>
+                    </div>
+                    
+                    <div class="messages-area" id="messagesArea">
+                        <div class="empty-state">
+                            <i class="bi bi-chat-left-text"></i>
+                            <p>Selecciona una conversación para comenzar</p>
+                        </div>
+                    </div>
+                    
+                    <div class="input-area">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="messageInput" 
+                                   placeholder="Escribe tu mensaje..." disabled>
+                            <button class="btn btn-success" id="sendBtn" disabled>
+                                <i class="bi bi-send-fill"></i> Enviar
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            <i class="bi bi-info-circle"></i> Presiona Enter para enviar
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Inicio -->
+    <div class="modal fade" id="loginModal" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-person-badge"></i> Iniciar Sesión
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre del Operador</label>
+                        <input type="text" class="form-control" id="operatorNameInput" 
+                               placeholder="Ingresa tu nombre">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" id="loginBtn">
+                        <i class="bi bi-box-arrow-in-right"></i> Conectar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio para notificaciones -->
+    <audio id="notificationSound" class="notification-sound">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZMA0PVanr7aZVEwlDm+Lxv24jBDWL0fPUgTUGHG3A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLgwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFA==" type="audio/wav">
+    </audio>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- SignalR -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.0/signalr.min.js"></script>
+    
+    <script>
+        let connection;
+        let currentConversationId = null;
+        let operatorId = null;
+        let conversations = {};
+
+        // Inicializar al cargar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
+            loginModal.show();
+
+            document.getElementById('loginBtn').addEventListener('click', connectOperator);
+            document.getElementById('sendBtn').addEventListener('click', sendMessage);
+            document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') sendMessage();
+            });
+        });
+
+        // Conectar operador
+        async function connectOperator() {
+            const operatorName = document.getElementById('operatorNameInput').value.trim();
+            
+            if (!operatorName) {
+                alert('Por favor ingresa tu nombre');
+                return;
+            }
+
+            try {
+                // Crear conexión SignalR
+                connection = new signalR.HubConnectionBuilder()
+                    .withUrl("/chatHub")
+                    .withAutomaticReconnect()
+                    .build();
+
+                // Configurar eventos
+                setupSignalREvents();
+
+                // Iniciar conexión
+                await connection.start();
+                console.log('✅ Conectado a SignalR');
+
+                // Registrar operador
+                await connection.invoke("RegisterOperator", operatorName);
+                
+                document.getElementById('operatorName').textContent = operatorName;
+                document.getElementById('connectionStatus').textContent = 'En Línea';
+                document.getElementById('connectionStatus').classList.remove('status-offline');
+                document.getElementById('connectionStatus').classList.add('status-online');
+
+                // Cerrar modal
+                const loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+                loginModal.hide();
+
+                // Solicitar conversaciones en espera
+                await connection.invoke("SendWaitingConversations");
+
+            } catch (error) {
+                console.error('❌ Error al conectar:', error);
+                alert('Error al conectar. Por favor recarga la página.');
+            }
+        }
+
+        // Configurar eventos de SignalR
+        function setupSignalREvents() {
+            connection.on("OperatorRegistered", (id) => {
+                operatorId = id;
+                console.log('Operador registrado:', id);
+            });
+
+            connection.on("WaitingConversations", (waitingConversations) => {
+                waitingConversations.forEach(conv => {
+                    addConversationToList(conv, true);
+                });
+                updateWaitingCount();
+            });
+
+            connection.on("NewConversationWaiting", (conversation) => {
+                addConversationToList(conversation, true);
+                playNotificationSound();
+                updateWaitingCount();
+            });
+
+            connection.on("NewConversationAssigned", (conversation) => {
+                addConversationToList(conversation, false);
+                selectConversation(conversation.conversationId);
+            });
+
+            connection.on("ConversationAssigned", (conversation) => {
+                addConversationToList(conversation, false);
+                selectConversation(conversation.conversationId);
+            });
+
+            connection.on("ConversationTaken", (conversationId) => {
+                const element = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+                if (element) element.remove();
+                updateWaitingCount();
+            });
+
+            connection.on("MessageSent", (conversationId, message) => {
+                if (conversations[conversationId]) {
+                    conversations[conversationId].messages.push(message);
+                    if (currentConversationId === conversationId) {
+                        displayMessage(message);
+                    }
+                }
+            });
+
+            connection.on("BotHandledMessage", (conversation) => {
+                addConversationToList(conversation, false);
+            });
+        }
+
+        // Agregar conversación a la lista
+        function addConversationToList(conversation, isWaiting) {
+            if (conversations[conversation.conversationId]) return;
+            
+            conversations[conversation.conversationId] = conversation;
+
+            const listContainer = document.getElementById('conversationsList');
+            
+            // Remover empty state
+            const emptyState = listContainer.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+
+            const lastMessage = conversation.messages[conversation.messages.length - 1];
+            const lastMessageText = lastMessage ? lastMessage.content.substring(0, 50) : 'Sin mensajes';
+
+            const conversationHtml = `
+                <div class="conversation-item ${isWaiting ? 'waiting' : ''}" 
+                     data-conversation-id="${conversation.conversationId}"
+                     onclick="selectConversation('${conversation.conversationId}')">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <strong>${conversation.customerName}</strong>
+                            ${isWaiting ? '<span class="badge bg-warning badge-waiting ms-2">ESPERANDO</span>' : ''}
+                            <br>
+                            <small class="text-muted">${conversation.phoneNumber}</small>
+                            <p class="mb-0 mt-1 text-muted small">${lastMessageText}...</p>
+                        </div>
+                        <small class="text-muted">${formatTime(conversation.lastActivity)}</small>
+                    </div>
+                </div>
+            `;
+
+            listContainer.insertAdjacentHTML('afterbegin', conversationHtml);
+            updateWaitingCount();
+        }
+
+        // Seleccionar conversación
+        async function selectConversation(conversationId) {
+            const conversation = conversations[conversationId];
+            if (!conversation) return;
+
+            // Si está en espera, tomarla
+            if (conversation.status === 0) { // ConversationStatus.Waiting
+                await connection.invoke("TakeConversation", conversationId);
+            }
+
+            currentConversationId = conversationId;
+
+            // Actualizar UI
+            document.querySelectorAll('.conversation-item').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            const selectedElement = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+            if (selectedElement) {
+                selectedElement.classList.remove('waiting');
+                selectedElement.classList.add('active');
+            }
+
+            document.getElementById('currentCustomerName').innerHTML = 
+                `<i class="bi bi-person-circle"></i> ${conversation.customerName}`;
+            document.getElementById('currentCustomerPhone').textContent = conversation.phoneNumber;
+            
+            // Habilitar input
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            document.getElementById('closeConversationBtn').style.display = 'block';
+
+            // Mostrar mensajes
+            displayMessages(conversation.messages);
+        }
+
+        // Mostrar mensajes
+        function displayMessages(messages) {
+            const messagesArea = document.getElementById('messagesArea');
+            messagesArea.innerHTML = '';
+
+            messages.forEach(message => {
+                displayMessage(message);
+            });
+
+            scrollToBottom();
+        }
+
+        // Mostrar un mensaje
+        function displayMessage(message) {
+            const messagesArea = document.getElementById('messagesArea');
+            
+            let messageClass = 'customer';
+            let senderName = message.sender;
+            
+            if (message.type === 1) { // MessageType.Operator
+                messageClass = 'operator';
+            } else if (message.type === 2) { // MessageType.Bot
+                messageClass = 'bot';
+                senderName = '🤖 ' + senderName;
+            }
+
+            const messageHtml = `
+                <div class="message ${messageClass}">
+                    <div class="message-bubble">
+                        <div class="message-sender">${senderName}</div>
+                        <div class="message-content">${escapeHtml(message.content)}</div>
+                        <div class="message-time">${formatTime(message.timestamp)}</div>
+                    </div>
+                </div>
+            `;
+
+            messagesArea.insertAdjacentHTML('beforeend', messageHtml);
+            scrollToBottom();
+        }
+
+        // Enviar mensaje
+        async function sendMessage() {
+            if (!currentConversationId) return;
+
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+
+            if (!message) return;
+
+            try {
+                await connection.invoke("SendMessageToCustomer", currentConversationId, message);
+                messageInput.value = '';
+                messageInput.focus();
+            } catch (error) {
+                console.error('Error al enviar mensaje:', error);
+                alert('Error al enviar el mensaje');
+            }
+        }
+
+        // Funciones auxiliares
+        function updateWaitingCount() {
+            const waitingCount = document.querySelectorAll('.conversation-item.waiting').length;
+            document.getElementById('waitingCount').textContent = waitingCount;
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function scrollToBottom() {
+            const messagesArea = document.getElementById('messagesArea');
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        function playNotificationSound() {
+            const audio = document.getElementById('notificationSound');
+            audio.play().catch(e => console.log('No se pudo reproducir sonido'));
+        }
+    </script>
+</body>
+</html>
