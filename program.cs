@@ -216,14 +216,60 @@ public class ApiIntegrationService
             Console.WriteLine($"   🌐 URL completa: {_baseUrl}{url}");
 
             var response = await client.GetAsync(url);
+            Console.WriteLine($"   📊 Status Code: {response.StatusCode}");
 
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<Paciente>(json);
+                Console.WriteLine($"   📦 JSON recibido: {json.Substring(0, Math.Min(200, json.Length))}...");
+                
+                // ⚠️ Configurar opciones para ignorar propiedades desconocidas
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                };
+                
+                try
+                {
+                    // Intentar deserializar como lista primero
+                    var pacientes = JsonSerializer.Deserialize<List<Paciente>>(json, options);
+                    if (pacientes != null && pacientes.Count > 0)
+                    {
+                        Console.WriteLine($"   ✅ Paciente encontrado (lista): {pacientes[0].NombrePaciente}");
+                        return pacientes[0];
+                    }
+                }
+                catch (JsonException ex1)
+                {
+                    Console.WriteLine($"   ⚠️ No es una lista, intentando como objeto único: {ex1.Message}");
+                    
+                    try
+                    {
+                        // Si falla, intentar como objeto único
+                        var paciente = JsonSerializer.Deserialize<Paciente>(json, options);
+                        if (paciente != null)
+                        {
+                            Console.WriteLine($"   ✅ Paciente encontrado (objeto): {paciente.NombrePaciente}");
+                            return paciente;
+                        }
+                    }
+                    catch (JsonException ex2)
+                    {
+                        Console.WriteLine($"   ❌ Error deserializando objeto: {ex2.Message}");
+                    }
+                }
+                
+                Console.WriteLine($"   ⚠️ No se pudo deserializar el JSON");
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"   ❌ Error en respuesta: {errorContent}");
             }
             
             return null;
+
         }
         catch (Exception ex)
         {
