@@ -176,7 +176,7 @@ public class ApiIntegrationService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly string _baseUrl;
     private readonly string _codigoEmpresa;
-    private readonly string _apiKey;
+    //private readonly string _apiKey;
 
     public ApiIntegrationService(IConfiguration configuration, IHttpClientFactory httpClientFactory)
     {
@@ -208,6 +208,13 @@ public class ApiIntegrationService
             client.BaseAddress = new Uri(_baseUrl);
 
             string url = $"/Pacientes?CodigoEmp={_codigoEmpresa}&criterio={documento}";
+                    // ✅ LOGS DE DEPURACIÓN
+            Console.WriteLine($"🔍 Buscando paciente...");
+            Console.WriteLine($"   📍 Base URL: {_baseUrl}");
+            Console.WriteLine($"   🏢 Código Empresa: {_codigoEmpresa}");
+            Console.WriteLine($"   📄 Documento: {documento}");
+            Console.WriteLine($"   🌐 URL completa: {_baseUrl}{url}");
+
             var response = await client.GetAsync(url);
 
             if (response.IsSuccessStatusCode)
