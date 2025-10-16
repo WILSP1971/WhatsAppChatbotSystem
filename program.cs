@@ -3,6 +3,12 @@ using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ⭐ CONFIGURAR PUERTO DINÁMICO PARA RAILWAY
+var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+
+Console.WriteLine($"🚀 Servidor configurado en puerto: {port}");
+
 // Configurar servicios
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
@@ -32,6 +38,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<ChatHub>("/chatHub");
+
+Console.WriteLine("✅ Aplicación iniciada correctamente");
 
 app.Run();
 
@@ -70,10 +78,10 @@ public class Message
 
 public enum ConversationStatus
 {
-    Waiting,
-    Active,
-    BotHandling,
-    Closed
+    Waiting,      // Esperando operador
+    Active,       // Operador atendiendo
+    BotHandling,  // Bot manejando
+    Closed        // Cerrada
 }
 
 public enum MessageType
@@ -114,9 +122,10 @@ public class ConversationManager
                 conversation = new Conversation
                 {
                     PhoneNumber = phoneNumber,
-                    CustomerName = $"Cliente {phoneNumber.Substring(phoneNumber.Length - 4)}"
+                    CustomerName = $"Cliente {phoneNumber.Substring(Math.Max(0, phoneNumber.Length - 4))}"
                 };
                 _conversations[conversation.ConversationId] = conversation;
+                Console.WriteLine($"📞 Nueva conversación: {phoneNumber}");
             }
 
             return conversation;
@@ -131,6 +140,7 @@ public class ConversationManager
             {
                 conversation.Messages.Add(message);
                 conversation.LastActivity = DateTime.UtcNow;
+                Console.WriteLine($"💬 Mensaje agregado: {message.Content.Substring(0, Math.Min(30, message.Content.Length))}...");
             }
         }
     }
@@ -143,8 +153,9 @@ public class ConversationManager
                 _operators.TryGetValue(operatorId, out var operatorInfo))
             {
                 conversation.AssignedOperator = operatorId;
-                conversation.Status = ConversationStatus.Active;
+                conversation.Status = ConversationStatus.Active; // ⭐ IMPORTANTE: Cambiar a Active
                 operatorInfo.ActiveConversations.Add(conversationId);
+                Console.WriteLine($"👤 Operador {operatorInfo.Name} asignado a conversación {conversationId}");
                 return true;
             }
             return false;
@@ -161,6 +172,7 @@ public class ConversationManager
                 Name = name,
                 IsAvailable = true
             };
+            Console.WriteLine($"✅ Operador registrado: {name}");
         }
     }
 
@@ -204,6 +216,18 @@ public class ConversationManager
                 .FirstOrDefault()?.OperatorId;
         }
     }
+
+    // ⭐ NUEVO MÉTODO: Verificar si una conversación está siendo atendida por operador
+    public bool IsConversationActive(string phoneNumber)
+    {
+        lock (_lock)
+        {
+            var conversation = _conversations.Values
+                .FirstOrDefault(c => c.PhoneNumber == phoneNumber);
+            
+            return conversation != null && conversation.Status == ConversationStatus.Active;
+        }
+    }
 }
 
 // ============================================
@@ -245,11 +269,22 @@ public class WhatsAppService
             );
 
             var response = await _httpClient.PostAsync(url, content);
-            return response.IsSuccessStatusCode;
+            
+            if (response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"✅ Mensaje enviado a {to}");
+                return true;
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"❌ Error enviando mensaje: {error}");
+                return false;
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enviando mensaje: {ex.Message}");
+            Console.WriteLine($"❌ Error enviando mensaje: {ex.Message}");
             return false;
         }
     }
@@ -262,14 +297,23 @@ public class WhatsAppService
 public class AIBotService
 {
     private readonly WhatsAppService _whatsAppService;
+    private readonly ConversationManager _conversationManager;
 
-    public AIBotService(WhatsAppService whatsAppService)
+    public AIBotService(WhatsAppService whatsAppService, ConversationManager conversationManager)
     {
         _whatsAppService = whatsAppService;
+        _conversationManager = conversationManager;
     }
 
     public async Task<(bool handled, string? response)> ProcessMessage(string message, string phoneNumber)
     {
+        // ⭐ CRÍTICO: Si un operador está atendiendo, NO responder automáticamente
+        if (_conversationManager.IsConversationActive(phoneNumber))
+        {
+            Console.WriteLine($"🚫 Bot NO responde - Operador activo para {phoneNumber}");
+            return (false, null); // NO manejado, el operador debe responder
+        }
+
         var lowerMessage = message.ToLower().Trim();
 
         // Respuestas automáticas
@@ -288,6 +332,7 @@ public class AIBotService
             if (lowerMessage.Contains(key))
             {
                 await _whatsAppService.SendMessage(phoneNumber, autoResponses[key]);
+                Console.WriteLine($"🤖 Bot respondió automáticamente a: {message}");
                 return (true, autoResponses[key]);
             }
         }
@@ -299,6 +344,7 @@ public class AIBotService
         {
             var transferMessage = "🔄 Te estoy conectando con un agente humano. Por favor espera un momento...";
             await _whatsAppService.SendMessage(phoneNumber, transferMessage);
+            Console.WriteLine($"👤 Transferencia a operador solicitada por: {phoneNumber}");
             return (false, transferMessage);
         }
 
@@ -344,6 +390,7 @@ public class ChatHub : Hub
             var conversation = _conversationManager.GetConversation(conversationId);
             await Clients.Caller.SendAsync("ConversationAssigned", conversation);
             await Clients.Others.SendAsync("ConversationTaken", conversationId);
+            Console.WriteLine($"✅ Conversación {conversationId} tomada por operador {operatorId}");
         }
     }
 
@@ -378,6 +425,7 @@ public class ChatHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        Console.WriteLine($"❌ Operador desconectado: {Context.ConnectionId}");
         await base.OnDisconnectedAsync(exception);
     }
 }

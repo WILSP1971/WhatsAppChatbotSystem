@@ -383,6 +383,31 @@
             connection.on("BotHandledMessage", (conversation) => {
                 addConversationToList(conversation, false);
             });
+
+            // Agregar DENTRO de setupSignalREvents(), después de los otros eventos:
+
+            connection.on("NewMessageReceived", (conversationId, message) => {
+                console.log('Nuevo mensaje recibido:', message);
+                if (conversations[conversationId]) {
+                    conversations[conversationId].messages.push(message);
+                    if (currentConversationId === conversationId) {
+                        displayMessage(message);
+                    }
+                    // Actualizar la vista previa en la lista
+                    updateConversationPreview(conversationId, message.content);
+                }
+            });
+
+            connection.on("CustomerMessageReceived", (conversationId, message) => {
+                console.log('Mensaje del cliente para operador:', message);
+                if (conversations[conversationId]) {
+                    conversations[conversationId].messages.push(message);
+                    if (currentConversationId === conversationId) {
+                        displayMessage(message);
+                        playNotificationSound();
+                    }
+                }
+            });
         }
 
         // Agregar conversación a la lista
@@ -542,6 +567,17 @@
             const audio = document.getElementById('notificationSound');
             audio.play().catch(e => console.log('No se pudo reproducir sonido'));
         }
+
+        function updateConversationPreview(conversationId, messageText) {
+            const element = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+            if (element) {
+                const preview = element.querySelector('.text-muted.small');
+                if (preview) {
+                    preview.textContent = messageText.substring(0, 50) + '...';
+                }
+            }
+        }
+
     </script>
 </body>
 </html>
