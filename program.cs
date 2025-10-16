@@ -175,6 +175,7 @@ public class ApiIntegrationService
     private readonly IConfiguration _configuration;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly string _baseUrl;
+    private readonly string _codigoEmpresa;
     private readonly string _apiKey;
 
     public ApiIntegrationService(IConfiguration configuration, IHttpClientFactory httpClientFactory)
@@ -182,6 +183,8 @@ public class ApiIntegrationService
         _configuration = configuration;
         _httpClientFactory = httpClientFactory;
         _baseUrl = _configuration["ApiSettings:BaseUrl"] ?? "";
+        _codigoEmpresa = _configuration["ApiSettings:CodigoEmpresa"] ?? "C30";
+
         //_apiKey = _configuration["ApiSettings:ApiKey"] ?? "";
     }
 
@@ -201,13 +204,10 @@ public class ApiIntegrationService
             //var client = CreateClient();
             //var response = await client.GetAsync($"/Pacientes/{documento}");
 
-            using var client = new HttpClient();
-            client.BaseAddress = new Uri("https://appsintranet.esculapiosis.com/ApiCampbell/api");
+          using var client = new HttpClient();
+            client.BaseAddress = new Uri(_baseUrl);
 
-            // Construye la URL con parámetros de consulta
-            string url = $"/Pacientes?CodigoEmp={codigoEmp}&criterio={dni}";
-
-            // Llamada GET
+            string url = $"/Pacientes?CodigoEmp={_codigoEmpresa}&criterio={documento}";
             var response = await client.GetAsync(url);
 
             if (response.IsSuccessStatusCode)
@@ -225,21 +225,14 @@ public class ApiIntegrationService
         }
     }
 
-    public async Task<List<Cita>> ObtenerCitasPorTelefono(string telefono)
+    public async Task<List<Cita>> ObtenerCitasPorTelefono(string documento)
     {
         try
         {
-            //var client = CreateClient();
-            //var response = await client.GetAsync($"/CitasProgramadas");
-            //var response = await client.GetAsync($"/citas/telefono/{telefono}");
-
             using var client = new HttpClient();
-            client.BaseAddress = new Uri("https://appsintranet.esculapiosis.com/ApiCampbell/api");
+            client.BaseAddress = new Uri(_baseUrl);
 
-            // Construye la URL con parámetros de consulta
-              string url = $"/CitasProgramadas?CodigoEmp={codigoEmp}&criterio={dni}";
-
-            // Llamada GET
+            string url = $"/CitasProgramadas?CodigoEmp={_codigoEmpresa}&criterio={documento}";
             var response = await client.GetAsync(url);
 
             if (response.IsSuccessStatusCode)
@@ -717,10 +710,10 @@ public class AIBotService
             //              $"📄 Documento: {paciente.Documento}\n" +
             //              $"📧 Email: {paciente.Email}\n\n";
 
-            var response = $"✅ ¡Hola {paciente.DatosPaciente}!\n\n" +
-                         $"Datos encontrados:\n" +
-                         $"📄 Documento: {paciente.NoIdentificacion}\n" +
-                         $"📧 Caso No: {paciente.NoCaso}\n\n";
+            var response = $"✅ ¡Hola {paciente.NombrePaciente} {paciente.ApellidoPaciente}!\n\n" +
+                     $"Datos encontrados:\n" +
+                     $"📄 Documento: {paciente.NoIdentificacion}\n" +
+                     $"📋 Caso No: {paciente.NoCaso}\n\n";
 
             if (tipoSolicitud == "videollamada")
             {
