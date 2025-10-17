@@ -207,7 +207,7 @@ public class ApiIntegrationService
             using var client = new HttpClient();
             client.BaseAddress = new Uri(_baseUrl);
 
-            string url = $"Pacientes?CodigoEmp={_codigoEmpresa}&criterio={documento}";
+            string fullUrl = $"{_baseUrl}/Pacientes?CodigoEmp={_codigoEmpresa}&criterio={documento}";
 
             // ✅ LOGS DE DEPURACIÓN
             Console.WriteLine($"🔍 Buscando paciente...");
@@ -284,15 +284,26 @@ public class ApiIntegrationService
         try
         {
             using var client = new HttpClient();
-            client.BaseAddress = new Uri(_baseUrl);
+            //client.BaseAddress = new Uri(_baseUrl);
 
-            string url = $"/CitasProgramadas?CodigoEmp={_codigoEmpresa}&criterio={documento}";
+            string fullUrl = $"{_baseUrl}/CitasProgramadas?CodigoEmp={_codigoEmpresa}&criterio={documento}";
+
             var response = await client.GetAsync(url);
 
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<List<Cita>>(json) ?? new List<Cita>();
+                Console.WriteLine($"   📦 JSON: {json.Substring(0, Math.Min(300, json.Length))}");
+                
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                };
+                
+                var citas = JsonSerializer.Deserialize<List<Cita>>(json, options) ?? new List<Cita>();
+                Console.WriteLine($"   ✅ {citas.Count} citas encontradas");
+                return citas;
             }
             
             return new List<Cita>();
