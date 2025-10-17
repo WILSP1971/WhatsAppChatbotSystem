@@ -109,6 +109,29 @@ public class Operator
 }
 
 // ============================================
+// MODELOS PARA MENSAJES INTERACTIVOS
+// ============================================
+
+public class ButtonOption
+{
+    public string Id { get; set; } = "";
+    public string Title { get; set; } = "";
+}
+
+public class ListSection
+{
+    public string Title { get; set; } = "";
+    public List<ListRow> Rows { get; set; } = new();
+}
+
+public class ListRow
+{
+    public string Id { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+}
+
+// ============================================
 // MODELOS DE API
 // ============================================
 
@@ -746,26 +769,6 @@ public class WhatsAppService
             Console.WriteLine($"❌ Error enviando lista: {ex.Message}");
             return false;
         }
-    }
-
-    // Clases auxiliares para botones y listas
-    public class ButtonOption
-    {
-        public string Id { get; set; } = "";
-        public string Title { get; set; } = "";
-    }
-
-    public class ListSection
-    {
-        public string Title { get; set; } = "";
-        public List<ListRow> Rows { get; set; } = new();
-    }
-
-    public class ListRow
-    {
-        public string Id { get; set; } = "";
-        public string Title { get; set; } = "";
-        public string Description { get; set; } = "";
     }
 
 }
