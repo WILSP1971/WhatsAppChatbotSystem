@@ -236,6 +236,8 @@
                     
                     <div class="input-area">
                         <!-- ⭐ NUEVO: Botones para adjuntar archivos -->
+
+                        <!-- En la sección de input-area, agrega este botón -->
                         <div class="mb-2">
                             <div class="btn-group" role="group">
                                 <div class="file-input-wrapper">
@@ -250,6 +252,10 @@
                                     </label>
                                     <input type="file" id="documentInput" accept=".pdf,.doc,.docx,.txt" disabled>
                                 </div>
+                                <!-- ✅ NUEVO: Botón de videollamada -->
+                                <button class="btn btn-sm btn-outline-primary ms-2" id="videoCallBtn" disabled>
+                                    <i class="bi bi-camera-video"></i> Videollamada
+                                </button>
                             </div>
                             <div id="filePreview" class="mt-2" style="display: none;">
                                 <small class="text-muted" id="fileName"></small>
@@ -258,7 +264,7 @@
                                 </button>
                             </div>
                         </div>
-                        
+                            
                         <div class="input-group">
                             <input type="text" class="form-control" id="messageInput" 
                                    placeholder="Escribe tu mensaje..." disabled>
@@ -532,55 +538,49 @@
             displayMessages(conversation.messages);
         }
 
-        function displayMessages(messages) {
-            const messagesArea = document.getElementById('messagesArea');
-            messagesArea.innerHTML = '';
-
-            messages.forEach(message => {
-                displayMessage(message);
-            });
-
-            scrollToBottom();
-        }
-
         function displayMessage(message) {
-            const messagesArea = document.getElementById('messagesArea');
-            
-            let messageClass = 'customer';
-            let senderName = message.sender;
-            
-            if (message.type === 1) {
-                messageClass = 'operator';
-            } else if (message.type === 2) {
-                messageClass = 'bot';
-                senderName = '🤖 ' + senderName;
-            }
-
-            let contentHtml = escapeHtml(message.content);
-            
-            // ⭐ Mostrar multimedia si existe
-            if (message.mediaUrl) {
-                if (message.mediaType === 'image') {
-                    contentHtml += `<br><img src="${message.mediaUrl}" class="media-preview" alt="Imagen">`;
-                } else if (message.mediaType === 'document') {
-                    contentHtml += `<br><i class="bi bi-file-earmark"></i> <a href="${message.mediaUrl}" target="_blank">Ver documento</a>`;
-                }
-            }
-
-            const messageHtml = `
-                <div class="message ${messageClass}">
-                    <div class="message-bubble">
-                        <div class="message-sender">${senderName}</div>
-                        <div class="message-content">${contentHtml}</div>
-                        <div class="message-time">${formatTime(message.timestamp)}</div>
-                    </div>
-                </div>
-            `;
-
-            messagesArea.insertAdjacentHTML('beforeend', messageHtml);
-            scrollToBottom();
+        const messagesArea = document.getElementById('messagesArea');
+        
+        let messageClass = 'customer';
+        let senderName = message.sender;
+        
+        if (message.type === 1) {
+            messageClass = 'operator';
+        } else if (message.type === 2) {
+            messageClass = 'bot';
+            senderName = '🤖 ' + senderName;
         }
 
+        let contentHtml = escapeHtml(message.content);
+        
+        // ✅ Mostrar multimedia si existe
+        if (message.mediaUrl) {
+            if (message.mediaType === 'image') {
+                contentHtml += `<br><img src="${message.mediaUrl}" class="media-preview" alt="Imagen">`;
+            } else if (message.mediaType === 'document') {
+                contentHtml += `<br><i class="bi bi-file-earmark"></i> <a href="${message.mediaUrl}" target="_blank">Ver documento</a>`;
+            } else if (message.mediaType === 'video_call') {
+                // ✅ NUEVO: Mostrar link de videollamada
+                contentHtml += `<br><a href="${message.mediaUrl}" target="_blank" class="btn btn-sm btn-primary mt-2">
+                    <i class="bi bi-camera-video"></i> Abrir videollamada
+                </a>`;
+            }
+        }
+
+        const messageHtml = `
+            <div class="message ${messageClass}">
+                <div class="message-bubble">
+                    <div class="message-sender">${senderName}</div>
+                    <div class="message-content">${contentHtml}</div>
+                    <div class="message-time">${formatTime(message.timestamp)}</div>
+                </div>
+            </div>
+        `;
+
+        messagesArea.insertAdjacentHTML('beforeend', messageHtml);
+        scrollToBottom();
+    }
+        
         async function sendMessage() {
             if (!currentConversationId) return;
 
@@ -788,6 +788,68 @@
             }
         }
  
+        // ✅ Habilitar botón de videollamada cuando se selecciona una conversación
+        async function selectConversation(conversationId) {
+            const conversation = conversations[conversationId];
+            if (!conversation) return;
+
+            if (conversation.status === 0) {
+                await connection.invoke("TakeConversation", conversationId);
+            }
+
+            currentConversationId = conversationId;
+
+            document.querySelectorAll('.conversation-item').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            const selectedElement = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+            if (selectedElement) {
+                selectedElement.classList.remove('waiting');
+                selectedElement.classList.add('active');
+            }
+
+            document.getElementById('currentCustomerName').innerHTML = 
+                `<i class="bi bi-person-circle"></i> ${conversation.customerName}`;
+            document.getElementById('currentCustomerPhone').textContent = conversation.phoneNumber;
+            
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            document.getElementById('closeConversationBtn').style.display = 'block';
+            document.getElementById('releaseToBotBtn').style.display = 'block';
+            
+            // ✅ Habilitar botones de archivos y videollamada
+            document.getElementById('imageInput').disabled = false;
+            document.getElementById('documentInput').disabled = false;
+            document.getElementById('videoCallBtn').disabled = false; // ✅ NUEVO
+
+            displayMessages(conversation.messages);
+        }
+
+        // ✅ NUEVO: Función para enviar videollamada
+        async function sendVideoCall() {
+            if (!currentConversationId) return;
+
+            if (confirm('¿Deseas enviar una invitación de videollamada al cliente?')) {
+                try {
+                    await connection.invoke("SendVideoCallToCustomer", currentConversationId);
+                    console.log('✅ Invitación de videollamada enviada');
+                } catch (error) {
+                    console.error('Error al enviar videollamada:', error);
+                    alert('Error al enviar la invitación de videollamada');
+                }
+            }
+        }
+
+        // ✅ Event listener para el botón de videollamada
+        document.addEventListener('DOMContentLoaded', function() {
+            // ... otros event listeners ...
+            
+            // ✅ NUEVO: Agregar event listener para videollamada
+            document.getElementById('videoCallBtn').addEventListener('click', sendVideoCall);
+        });
+
+
     </script>
 </body>
 </html>

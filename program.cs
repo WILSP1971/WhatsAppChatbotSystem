@@ -30,6 +30,8 @@ builder.Services.AddSingleton<WhatsAppService>();
 builder.Services.AddSingleton<AIBotService>();
 builder.Services.AddSingleton<ApiIntegrationService>();
 builder.Services.AddSingleton<CloudinaryService>();
+builder.Services.AddSingleton<JitsiService>();
+
 var app = builder.Build();
 
 // Configurar middleware
@@ -1059,4 +1061,56 @@ public class ChatHub : Hub
         Console.WriteLine($"❌ Operador desconectado: {Context.ConnectionId}");
         await base.OnDisconnectedAsync(exception);
     }
+
+    // ✅ NUEVO: Enviar link de videollamada al cliente
+    public async Task SendVideoCallToCustomer(string conversationId)
+    {
+        var conversation = _conversationManager.GetConversation(conversationId);
+        
+        if (conversation != null)
+        {
+            // Generar link de Jitsi
+            var jitsiService = new JitsiService(
+                Context.GetHttpContext()?.RequestServices.GetRequiredService<IConfiguration>() 
+                ?? throw new InvalidOperationException("Configuration not available")
+            );
+            
+            var videoCallUrl = jitsiService.GenerateVideoCallLink(
+                conversation.PhoneNumber, 
+                conversation.CustomerName
+            );
+            
+            // Crear mensaje con el link
+            var message = $"📹 *Invitación a Videollamada*\n\n" +
+                        $"Haz clic en el siguiente enlace para unirte a la videollamada:\n\n" +
+                        $"{videoCallUrl}\n\n" +
+                        $"_La videollamada es segura y privada._";
+            
+            // Enviar por WhatsApp
+            var success = await _whatsAppService.SendMessage(conversation.PhoneNumber, message);
+            
+            if (success)
+            {
+                var videoCallMessage = new Message
+                {
+                    Content = "📹 Invitación a videollamada enviada",
+                    Type = MessageType.Operator,
+                    Sender = "Operador",
+                    MediaUrl = videoCallUrl,
+                    MediaType = "video_call"
+                };
+
+                _conversationManager.AddMessage(conversationId, videoCallMessage);
+                
+                // Notificar a todos los operadores
+                await Clients.All.SendAsync("MessageSent", conversationId, videoCallMessage);
+                
+                Console.WriteLine($"✅ Videollamada enviada a {conversation.PhoneNumber}");
+                Console.WriteLine($"   🔗 URL: {videoCallUrl}");
+            }
+        }
+    }
+
+
+
 }
