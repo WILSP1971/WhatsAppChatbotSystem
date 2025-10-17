@@ -214,9 +214,9 @@ public class ApiIntegrationService
             Console.WriteLine($"   📍 Base URL: {_baseUrl}");
             Console.WriteLine($"   🏢 Código Empresa: {_codigoEmpresa}");
             Console.WriteLine($"   📄 Documento: {documento}");
-            Console.WriteLine($"   🌐 URL completa: {_baseUrl}{url}");
+            Console.WriteLine($"   🌐 URL completa: {_baseUrl}{fullUrl}");
 
-            var response = await client.GetAsync(url);
+            var response = await client.GetAsync(fullUrl);
             Console.WriteLine($"   📊 Status Code: {response.StatusCode}");
 
             if (response.IsSuccessStatusCode)
@@ -288,7 +288,7 @@ public class ApiIntegrationService
 
             string fullUrl = $"{_baseUrl}/CitasProgramadas?CodigoEmp={_codigoEmpresa}&criterio={documento}";
 
-            var response = await client.GetAsync(url);
+            var response = await client.GetAsync(fullUrl);
 
             if (response.IsSuccessStatusCode)
             {
