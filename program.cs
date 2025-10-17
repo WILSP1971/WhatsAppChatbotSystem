@@ -637,6 +637,137 @@ public class WhatsAppService
         }
     }
 
+    // ✅ NUEVO: Enviar mensaje con botones
+    public async Task<bool> SendButtonMessage(string to, string bodyText, List<ButtonOption> buttons)
+    {
+        try
+        {
+            var phoneNumberId = _configuration["WhatsApp:PhoneNumberId"];
+            var url = $"https://graph.facebook.com/v22.0/{phoneNumberId}/messages";
+
+            var buttonsPayload = buttons.Select(b => new
+            {
+                type = "reply",
+                reply = new
+                {
+                    id = b.Id,
+                    title = b.Title
+                }
+            }).ToList();
+
+            var payload = new
+            {
+                messaging_product = "whatsapp",
+                to = to,
+                type = "interactive",
+                interactive = new
+                {
+                    type = "button",
+                    body = new { text = bodyText },
+                    action = new
+                    {
+                        buttons = buttonsPayload
+                    }
+                }
+            };
+
+            var content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                System.Text.Encoding.UTF8,
+                "application/json"
+            );
+
+            var response = await _httpClient.PostAsync(url, content);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"✅ Mensaje con botones enviado a {to}");
+                return true;
+            }
+            
+            var errorContent = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"❌ Error: {errorContent}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error enviando botones: {ex.Message}");
+            return false;
+        }
+    }
+
+    // ✅ NUEVO: Enviar lista interactiva
+    public async Task<bool> SendListMessage(string to, string bodyText, string buttonText, List<ListSection> sections)
+    {
+        try
+        {
+            var phoneNumberId = _configuration["WhatsApp:PhoneNumberId"];
+            var url = $"https://graph.facebook.com/v22.0/{phoneNumberId}/messages";
+
+            var sectionsPayload = sections.Select(s => new
+            {
+                title = s.Title,
+                rows = s.Rows.Select(r => new
+                {
+                    id = r.Id,
+                    title = r.Title,
+                    description = r.Description
+                }).ToList()
+            }).ToList();
+
+            var payload = new
+            {
+                messaging_product = "whatsapp",
+                to = to,
+                type = "interactive",
+                interactive = new
+                {
+                    type = "list",
+                    body = new { text = bodyText },
+                    action = new
+                    {
+                        button = buttonText,
+                        sections = sectionsPayload
+                    }
+                }
+            };
+
+            var content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                System.Text.Encoding.UTF8,
+                "application/json"
+            );
+
+            var response = await _httpClient.PostAsync(url, content);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error enviando lista: {ex.Message}");
+            return false;
+        }
+    }
+
+    // Clases auxiliares para botones y listas
+    public class ButtonOption
+    {
+        public string Id { get; set; } = "";
+        public string Title { get; set; } = "";
+    }
+
+    public class ListSection
+    {
+        public string Title { get; set; } = "";
+        public List<ListRow> Rows { get; set; } = new();
+    }
+
+    public class ListRow
+    {
+        public string Id { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+    }
+
 }
 
 // ============================================
@@ -844,6 +975,17 @@ public class AIBotService
     private async Task<(bool, string?)> HandleHistoriaClinicaFlow(string input, string phoneNumber, Conversation conversation)
     {
         var paso = conversation.Context["registrando_historia"];
+        
+        // ✅ Permitir cancelar en cualquier momento
+        if (input.ToLower().Trim() == "cancelar" || input.ToLower().Trim() == "salir")
+        {
+            conversation.Context.Clear();
+            
+            var cancelMsg = "❌ Registro cancelado.\n\nEscribe 'hola' para volver al menú principal.";
+            await _whatsAppService.SendMessage(phoneNumber, cancelMsg);
+            return (true, cancelMsg);
+        }
+        
         string response;
 
         switch (paso)
@@ -851,52 +993,116 @@ public class AIBotService
             case "nombre":
                 conversation.Context["nombre"] = input;
                 conversation.Context["registrando_historia"] = "fecha_nacimiento";
-                response = "Ingresa tu fecha de nacimiento (DD/MM/AAAA):";
-                break;
+                
+                // ✅ Enviar con botón de cancelar
+                var buttons = new List<ButtonOption>
+                {
+                    new ButtonOption { Id = "cancelar", Title = "❌ Cancelar" }
+                };
+                
+                response = "📅 Ingresa tu fecha de nacimiento (DD/MM/AAAA):\n\n_Ejemplo: 15/03/1990_";
+                await _whatsAppService.SendMessage(phoneNumber, response);
+                await _whatsAppService.SendButtonMessage(phoneNumber, "¿Deseas cancelar el registro?", buttons);
+                return (true, response);
 
             case "fecha_nacimiento":
+                // ✅ Validar formato de fecha
+                if (!IsValidDate(input))
+                {
+                    response = "❌ Fecha inválida. Por favor usa el formato DD/MM/AAAA\n\nEjemplo: 15/03/1990\n\nEscribe 'cancelar' para salir.";
+                    await _whatsAppService.SendMessage(phoneNumber, response);
+                    return (true, response);
+                }
+                
                 conversation.Context["fecha_nacimiento"] = input;
                 conversation.Context["registrando_historia"] = "direccion";
-                response = "Ingresa tu dirección:";
+                response = "🏠 Ingresa tu dirección completa:\n\n_Escribe 'cancelar' para salir_";
                 break;
 
             case "direccion":
                 conversation.Context["direccion"] = input;
                 conversation.Context["registrando_historia"] = "telefono";
-                response = "Ingresa tu teléfono:";
+                response = "📱 Ingresa tu número de teléfono:\n\n_Escribe 'cancelar' para salir_";
                 break;
 
             case "telefono":
+                // ✅ Validar teléfono
+                if (!IsValidPhone(input))
+                {
+                    response = "❌ Teléfono inválido. Debe contener solo números.\n\nEscribe 'cancelar' para salir.";
+                    await _whatsAppService.SendMessage(phoneNumber, response);
+                    return (true, response);
+                }
+                
                 conversation.Context["telefono"] = input;
                 conversation.Context["registrando_historia"] = "email";
-                response = "Ingresa tu email:";
+                response = "📧 Ingresa tu correo electrónico:\n\n_Ejemplo: nombre@ejemplo.com_\n_Escribe 'cancelar' para salir_";
                 break;
 
             case "email":
-                // Guardar en BD vía API
-                var historia = new HistoriaClinica
+                // ✅ Validar email
+                if (!IsValidEmail(input))
                 {
-                    Documento = conversation.Context["documento_nuevo"],
-                    NombreCompleto = conversation.Context["nombre"],
-                    Direccion = conversation.Context["direccion"],
-                    Telefono = conversation.Context["telefono"],
-                    Email = input
-                };
-
-                var success = await _apiService.CrearHistoriaClinica(historia);
+                    response = "❌ Email inválido. Por favor ingresa un email válido.\n\nEjemplo: nombre@ejemplo.com\n\nEscribe 'cancelar' para salir.";
+                    await _whatsAppService.SendMessage(phoneNumber, response);
+                    return (true, response);
+                }
                 
-                if (success)
+                // ✅ Mostrar resumen antes de guardar
+                var resumen = $"📋 *Resumen de tus datos:*\n\n" +
+                            $"👤 Nombre: {conversation.Context["nombre"]}\n" +
+                            $"📅 Fecha Nacimiento: {conversation.Context["fecha_nacimiento"]}\n" +
+                            $"🏠 Dirección: {conversation.Context["direccion"]}\n" +
+                            $"📱 Teléfono: {conversation.Context["telefono"]}\n" +
+                            $"📧 Email: {input}\n\n" +
+                            $"¿Confirmas estos datos?";
+                
+                var confirmButtons = new List<ButtonOption>
                 {
-                    response = "✅ *Historia clínica creada exitosamente!*\n\n" +
-                            "Tus datos han sido registrados correctamente.";
+                    new ButtonOption { Id = "confirmar_registro", Title = "✅ Confirmar" },
+                    new ButtonOption { Id = "cancelar_registro", Title = "❌ Cancelar" }
+                };
+                
+                conversation.Context["email"] = input;
+                conversation.Context["registrando_historia"] = "confirmacion";
+                
+                await _whatsAppService.SendButtonMessage(phoneNumber, resumen, confirmButtons);
+                return (true, resumen);
+
+            case "confirmacion":
+                if (input == "confirmar_registro" || input.ToLower() == "si" || input.ToLower() == "confirmar")
+                {
+                    // Guardar en BD vía API
+                    var historia = new HistoriaClinica
+                    {
+                        Documento = conversation.Context["documento_nuevo"],
+                        NombreCompleto = conversation.Context["nombre"],
+                        Direccion = conversation.Context["direccion"],
+                        Telefono = conversation.Context["telefono"],
+                        Email = conversation.Context["email"]
+                    };
+
+                    var success = await _apiService.CrearHistoriaClinica(historia);
+                    
+                    if (success)
+                    {
+                        response = "✅ *¡Historia clínica creada exitosamente!*\n\n" +
+                                "Tus datos han sido registrados correctamente.\n\n" +
+                                "Escribe 'hola' para volver al menú principal.";
+                    }
+                    else
+                    {
+                        response = "❌ Hubo un error al guardar tus datos.\n" +
+                                "Un agente te contactará para ayudarte.";
+                    }
+                    
+                    conversation.Context.Clear();
                 }
                 else
                 {
-                    response = "❌ Hubo un error al guardar tus datos.\n" +
-                            "Un agente te contactará para ayudarte.";
+                    response = "❌ Registro cancelado.\n\nEscribe 'hola' para volver al menú principal.";
+                    conversation.Context.Clear();
                 }
-
-                conversation.Context.Clear();
                 break;
 
             default:
@@ -907,6 +1113,36 @@ public class AIBotService
 
         await _whatsAppService.SendMessage(phoneNumber, response);
         return (true, response);
+    }
+
+    // ✅ Métodos de validación
+    private bool IsValidDate(string date)
+    {
+        var parts = date.Split('/');
+        if (parts.Length != 3) return false;
+        
+        return int.TryParse(parts[0], out var day) && day >= 1 && day <= 31 &&
+            int.TryParse(parts[1], out var month) && month >= 1 && month <= 12 &&
+            int.TryParse(parts[2], out var year) && year >= 1900 && year <= DateTime.Now.Year;
+    }
+
+    private bool IsValidPhone(string phone)
+    {
+        var cleaned = phone.Replace(" ", "").Replace("-", "").Replace("+", "");
+        return cleaned.Length >= 7 && cleaned.All(char.IsDigit);
+    }
+
+    private bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email && email.Contains("@") && email.Contains(".");
+        }
+        catch
+        {
+            return false;
+        }
     }
 }
 
