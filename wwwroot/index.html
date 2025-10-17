@@ -742,8 +742,444 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.0/signalr.min.js"></script>
     
     <script>
-        // [El mismo JavaScript que ya tienes - lo mantengo igual]
-        // Solo copiar todo el script que ya funciona
+        let connection;
+        let currentConversationId = null;
+        let operatorId = null;
+        let conversations = {};
+        let selectedFile = null;
+        let selectedFileType = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
+            loginModal.show();
+
+            document.getElementById('loginBtn').addEventListener('click', connectOperator);
+            document.getElementById('sendBtn').addEventListener('click', sendMessage);
+            document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') sendMessage();
+            });
+            
+            document.getElementById('imageInput').addEventListener('change', handleImageSelect);
+            document.getElementById('documentInput').addEventListener('change', handleDocumentSelect);
+            document.getElementById('clearFile').addEventListener('click', clearFileSelection);
+            document.getElementById('releaseToBotBtn').addEventListener('click', releaseToBot);
+            document.getElementById('videoCallBtn').addEventListener('click', sendVideoCall);
+        });
+
+        async function connectOperator() {
+            const operatorName = document.getElementById('operatorNameInput').value.trim();
+            
+            if (!operatorName) {
+                alert('Por favor ingresa tu nombre');
+                return;
+            }
+
+            try {
+                connection = new signalR.HubConnectionBuilder()
+                    .withUrl("/chatHub")
+                    .withAutomaticReconnect()
+                    .build();
+
+                setupSignalREvents();
+
+                await connection.start();
+                console.log('✅ Conectado a SignalR');
+
+                await connection.invoke("RegisterOperator", operatorName);
+                
+                document.getElementById('operatorName').textContent = operatorName;
+                document.getElementById('connectionStatus').textContent = 'En Línea';
+                document.getElementById('connectionStatus').classList.remove('status-offline');
+                document.getElementById('connectionStatus').classList.add('status-online');
+
+                const loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+                loginModal.hide();
+
+                await connection.invoke("SendWaitingConversations");
+
+            } catch (error) {
+                console.error('❌ Error al conectar:', error);
+                alert('Error al conectar. Por favor recarga la página.');
+            }
+        }
+
+        function setupSignalREvents() {
+            connection.on("OperatorRegistered", (id) => {
+                operatorId = id;
+                console.log('Operador registrado:', id);
+            });
+
+            connection.on("WaitingConversations", (waitingConversations) => {
+                waitingConversations.forEach(conv => {
+                    addConversationToList(conv, true);
+                });
+                updateWaitingCount();
+            });
+
+            connection.on("NewConversationWaiting", (conversation) => {
+                addConversationToList(conversation, true);
+                playNotificationSound();
+                updateWaitingCount();
+            });
+
+            connection.on("NewConversationAssigned", (conversation) => {
+                addConversationToList(conversation, false);
+                selectConversation(conversation.conversationId);
+            });
+
+            connection.on("ConversationAssigned", (conversation) => {
+                addConversationToList(conversation, false);
+                selectConversation(conversation.conversationId);
+            });
+
+            connection.on("ConversationTaken", (conversationId) => {
+                const element = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+                if (element) element.remove();
+                updateWaitingCount();
+            });
+
+            connection.on("MessageSent", (conversationId, message) => {
+                if (conversations[conversationId]) {
+                    conversations[conversationId].messages.push(message);
+                    if (currentConversationId === conversationId) {
+                        displayMessage(message);
+                    }
+                }
+            });
+
+            connection.on("BotHandledMessage", (conversation) => {
+                addConversationToList(conversation, false);
+            });
+
+            connection.on("NewMessageReceived", (conversationId, message) => {
+                console.log('Nuevo mensaje recibido:', message);
+                if (conversations[conversationId]) {
+                    conversations[conversationId].messages.push(message);
+                    if (currentConversationId === conversationId) {
+                        displayMessage(message);
+                    }
+                    updateConversationPreview(conversationId, message.content);
+                }
+            });
+
+            connection.on("CustomerMessageReceived", (conversationId, message) => {
+                console.log('Mensaje del cliente para operador:', message);
+                if (conversations[conversationId]) {
+                    conversations[conversationId].messages.push(message);
+                    if (currentConversationId === conversationId) {
+                        displayMessage(message);
+                        playNotificationSound();
+                    }
+                }
+            });
+
+            connection.on("ConversationReleasedToBot", (conversationId) => {
+                const element = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+                if (element) {
+                    element.remove();
+                }
+                
+                if (currentConversationId === conversationId) {
+                    currentConversationId = null;
+                    document.getElementById('messageInput').disabled = true;
+                    document.getElementById('sendBtn').disabled = true;
+                    document.getElementById('releaseToBotBtn').style.display = 'none';
+                    document.getElementById('closeConversationBtn').style.display = 'none';
+                    document.getElementById('videoCallBtn').disabled = true;
+                    document.getElementById('imageInput').disabled = true;
+                    document.getElementById('documentInput').disabled = true;
+                    
+                    const messagesArea = document.getElementById('messagesArea');
+                    messagesArea.innerHTML = '<div class="empty-state"><i class="bi bi-chat-left-text"></i><p>Selecciona una conversación para comenzar</p></div>';
+                }
+                
+                console.log('✅ Conversación devuelta al bot:', conversationId);
+            });
+        }
+
+        function addConversationToList(conversation, isWaiting) {
+            if (conversations[conversation.conversationId]) return;
+            
+            conversations[conversation.conversationId] = conversation;
+
+            const listContainer = document.getElementById('conversationsList');
+            
+            const emptyState = listContainer.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+
+            const lastMessage = conversation.messages[conversation.messages.length - 1];
+            const lastMessageText = lastMessage ? lastMessage.content.substring(0, 50) : 'Sin mensajes';
+
+            const conversationHtml = `
+                <div class="conversation-item ${isWaiting ? 'waiting' : ''}" 
+                     data-conversation-id="${conversation.conversationId}"
+                     onclick="selectConversation('${conversation.conversationId}')">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="conversation-name">
+                                ${conversation.customerName}
+                                ${isWaiting ? '<span class="badge bg-warning text-dark">ESPERANDO</span>' : ''}
+                            </div>
+                            <div class="conversation-phone">${conversation.phoneNumber}</div>
+                            <div class="conversation-preview">${lastMessageText}...</div>
+                        </div>
+                        <div class="conversation-time">${formatTime(conversation.lastActivity)}</div>
+                    </div>
+                </div>
+            `;
+
+            listContainer.insertAdjacentHTML('afterbegin', conversationHtml);
+            updateWaitingCount();
+        }
+
+        async function selectConversation(conversationId) {
+            const conversation = conversations[conversationId];
+            if (!conversation) return;
+
+            if (conversation.status === 0) {
+                await connection.invoke("TakeConversation", conversationId);
+            }
+
+            currentConversationId = conversationId;
+
+            document.querySelectorAll('.conversation-item').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            const selectedElement = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+            if (selectedElement) {
+                selectedElement.classList.remove('waiting');
+                selectedElement.classList.add('active');
+            }
+
+            document.getElementById('currentCustomerName').innerHTML = 
+                `<i class="bi bi-person-circle"></i> ${conversation.customerName}`;
+            document.getElementById('currentCustomerPhone').textContent = conversation.phoneNumber;
+            
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            document.getElementById('closeConversationBtn').style.display = 'block';
+            document.getElementById('releaseToBotBtn').style.display = 'block';
+            document.getElementById('imageInput').disabled = false;
+            document.getElementById('documentInput').disabled = false;
+            document.getElementById('videoCallBtn').disabled = false;
+
+            displayMessages(conversation.messages);
+        }
+
+        function displayMessages(messages) {
+            const messagesArea = document.getElementById('messagesArea');
+            messagesArea.innerHTML = '';
+
+            messages.forEach(message => {
+                displayMessage(message);
+            });
+
+            scrollToBottom();
+        }
+
+        function displayMessage(message) {
+            const messagesArea = document.getElementById('messagesArea');
+            
+            let messageClass = 'customer';
+            let senderName = message.sender;
+            
+            if (message.type === 1) {
+                messageClass = 'operator';
+            } else if (message.type === 2) {
+                messageClass = 'bot';
+                senderName = '🤖 ' + senderName;
+            }
+
+            let contentHtml = escapeHtml(message.content);
+            
+            if (message.mediaUrl) {
+                if (message.mediaType === 'image') {
+                    contentHtml += `<br><img src="${message.mediaUrl}" class="media-preview" alt="Imagen">`;
+                } else if (message.mediaType === 'document') {
+                    contentHtml += `<br><i class="bi bi-file-earmark"></i> <a href="${message.mediaUrl}" target="_blank">Ver documento</a>`;
+                } else if (message.mediaType === 'video_call') {
+                    contentHtml += `<br><a href="${message.mediaUrl}" target="_blank" class="btn btn-sm btn-primary mt-2">
+                        <i class="bi bi-camera-video"></i> Abrir videollamada
+                    </a>`;
+                }
+            }
+
+            const messageHtml = `
+                <div class="message ${messageClass}">
+                    <div class="message-bubble">
+                        <div class="message-sender">${senderName}</div>
+                        <div class="message-content">${contentHtml}</div>
+                        <div class="message-time">${formatTime(message.timestamp)}</div>
+                    </div>
+                </div>
+            `;
+
+            messagesArea.insertAdjacentHTML('beforeend', messageHtml);
+            scrollToBottom();
+        }
+
+        async function sendMessage() {
+            if (!currentConversationId) return;
+
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+
+            if (selectedFile) {
+                await sendFile();
+                return;
+            }
+
+            if (!message) return;
+
+            try {
+                await connection.invoke("SendMessageToCustomer", currentConversationId, message);
+                messageInput.value = '';
+                messageInput.focus();
+            } catch (error) {
+                console.error('Error al enviar mensaje:', error);
+                alert('Error al enviar el mensaje');
+            }
+        }
+
+        function handleImageSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                selectedFileType = 'image';
+                document.getElementById('fileName').textContent = `🖼️ ${file.name}`;
+                document.getElementById('filePreview').style.display = 'flex';
+            }
+        }
+
+        function handleDocumentSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                selectedFileType = 'document';
+                document.getElementById('fileName').textContent = `📄 ${file.name}`;
+                document.getElementById('filePreview').style.display = 'flex';
+            }
+        }
+
+        function clearFileSelection() {
+            selectedFile = null;
+            selectedFileType = null;
+            document.getElementById('imageInput').value = '';
+            document.getElementById('documentInput').value = '';
+            document.getElementById('filePreview').style.display = 'none';
+        }
+
+        async function sendFile() {
+            if (!selectedFile || !currentConversationId) return;
+
+            try {
+                const messageInput = document.getElementById('messageInput');
+                const caption = messageInput.value.trim() || null;
+                
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                const endpoint = selectedFileType === 'image' ? '/api/upload/image' : '/api/upload/document';
+                const uploadResponse = await fetch(endpoint, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) {
+                    const error = await uploadResponse.json();
+                    alert(`Error: ${error.message || 'No se pudo subir el archivo'}`);
+                    return;
+                }
+
+                const uploadResult = await uploadResponse.json();
+                
+                if (uploadResult.success && uploadResult.url) {
+                    if (selectedFileType === 'image') {
+                        await connection.invoke("SendImageToCustomer", currentConversationId, uploadResult.url, caption);
+                    } else if (selectedFileType === 'document') {
+                        await connection.invoke("SendDocumentToCustomer", 
+                            currentConversationId, 
+                            uploadResult.url, 
+                            uploadResult.filename || selectedFile.name, 
+                            caption);
+                    }
+
+                    messageInput.value = '';
+                    clearFileSelection();
+                    console.log('✅ Archivo enviado correctamente');
+                } else {
+                    alert('Error al procesar el archivo');
+                }
+            } catch (error) {
+                console.error('Error al enviar archivo:', error);
+                alert('Error al enviar el archivo. Por favor intenta nuevamente.');
+            }
+        }
+
+        async function releaseToBot() {
+            if (!currentConversationId) return;
+
+            if (confirm('¿Estás seguro de devolver esta conversación al bot? El bot continuará atendiendo al cliente automáticamente.')) {
+                try {
+                    await connection.invoke("ReleaseConversationToBot", currentConversationId);
+                    console.log('✅ Conversación devuelta al bot');
+                } catch (error) {
+                    console.error('Error al devolver al bot:', error);
+                    alert('Error al devolver la conversación al bot');
+                }
+            }
+        }
+
+        async function sendVideoCall() {
+            if (!currentConversationId) return;
+
+            if (confirm('¿Deseas enviar una invitación de videollamada al cliente?')) {
+                try {
+                    await connection.invoke("SendVideoCallToCustomer", currentConversationId);
+                    console.log('✅ Invitación de videollamada enviada');
+                } catch (error) {
+                    console.error('Error al enviar videollamada:', error);
+                    alert('Error al enviar la invitación de videollamada');
+                }
+            }
+        }
+
+        function updateWaitingCount() {
+            const waitingCount = document.querySelectorAll('.conversation-item.waiting').length;
+            document.getElementById('waitingCount').textContent = waitingCount;
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function scrollToBottom() {
+            const messagesArea = document.getElementById('messagesArea');
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        function playNotificationSound() {
+            const audio = document.getElementById('notificationSound');
+            audio.play().catch(e => console.log('No se pudo reproducir sonido'));
+        }
+
+        function updateConversationPreview(conversationId, messageText) {
+            const element = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+            if (element) {
+                const preview = element.querySelector('.conversation-preview');
+                if (preview) {
+                    preview.textContent = messageText.substring(0, 50) + '...';
+                }
+            }
+        }
     </script>
 </body>
 </html>
