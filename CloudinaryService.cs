@@ -52,28 +52,44 @@ public class CloudinaryService
         {
             using var stream = new MemoryStream(fileBytes);
             
+            // ✅ Obtener extensión del archivo
+            var extension = Path.GetExtension(fileName).ToLower();
+            var publicId = $"whatsapp-docs/{Guid.NewGuid()}{extension}";
+            
             var uploadParams = new RawUploadParams
             {
                 File = new FileDescription(fileName, stream),
-                PublicId = $"whatsapp-docs/{Guid.NewGuid()}",
-                Overwrite = true
+                PublicId = publicId,
+                Overwrite = true,
+                // ✅ IMPORTANTE: Usar resource_type "raw" para documentos
+                ResourceType = ResourceType.Raw
             };
 
             var uploadResult = await _cloudinary.UploadAsync(uploadParams);
             
             if (uploadResult.StatusCode == System.Net.HttpStatusCode.OK)
             {
-                Console.WriteLine($"✅ Documento subido: {uploadResult.SecureUrl}");
-                return uploadResult.SecureUrl.ToString();
+                // ✅ Construir URL con extensión visible
+                var urlWithExtension = uploadResult.SecureUrl.ToString();
+                
+                Console.WriteLine($"✅ Documento subido: {urlWithExtension}");
+                Console.WriteLine($"   📎 Tipo: {uploadResult.Format}");
+                Console.WriteLine($"   📏 Tamaño: {uploadResult.Bytes} bytes");
+                
+                return urlWithExtension;
             }
 
+            Console.WriteLine($"❌ Upload falló: {uploadResult.StatusCode}");
             return null;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"❌ Error subiendo documento: {ex.Message}");
+            Console.WriteLine($"   Stack: {ex.StackTrace}");
             return null;
         }
     }
 }
+
+
 

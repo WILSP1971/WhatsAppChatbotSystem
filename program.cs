@@ -582,6 +582,11 @@ public class WhatsAppService
             var phoneNumberId = _configuration["WhatsApp:PhoneNumberId"];
             var url = $"https://graph.facebook.com/v22.0/{phoneNumberId}/messages";
 
+            Console.WriteLine($"📄 Enviando documento...");
+            Console.WriteLine($"   📱 Para: {to}");
+            Console.WriteLine($"   🔗 URL: {documentUrl}");
+            Console.WriteLine($"   📎 Nombre: {filename}");
+
             var payload = new
             {
                 messaging_product = "whatsapp",
@@ -595,21 +600,41 @@ public class WhatsAppService
                 }
             };
 
+            var jsonPayload = JsonSerializer.Serialize(payload);
+            Console.WriteLine($"   📦 Payload: {jsonPayload}");
+
             var content = new StringContent(
-                JsonSerializer.Serialize(payload),
+                jsonPayload,
                 System.Text.Encoding.UTF8,
                 "application/json"
             );
 
             var response = await _httpClient.PostAsync(url, content);
-            return response.IsSuccessStatusCode;
+            
+            var responseBody = await response.Content.ReadAsStringAsync();
+            
+            if (response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"   ✅ Documento enviado exitosamente");
+                Console.WriteLine($"   📄 Respuesta: {responseBody}");
+                return true;
+            }
+            else
+            {
+                Console.WriteLine($"   ❌ Error enviando documento");
+                Console.WriteLine($"   📄 Status: {response.StatusCode}");
+                Console.WriteLine($"   📄 Respuesta: {responseBody}");
+                return false;
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Error enviando documento: {ex.Message}");
+            Console.WriteLine($"❌ Excepción enviando documento: {ex.Message}");
+            Console.WriteLine($"   Stack: {ex.StackTrace}");
             return false;
         }
     }
+
 }
 
 // ============================================
