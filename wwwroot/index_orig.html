@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Operadores - WhatsApp Chatbot</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #f0f2f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .chat-container {
+            height: calc(100vh - 160px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .conversations-sidebar {
+            height: calc(100vh - 120px);
+            overflow-y: auto;
+            border-right: 1px solid #dee2e6;
+            background: white;
+        }
+        
+        .conversation-item {
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .conversation-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .conversation-item.active {
+            background-color: #e3f2fd;
+            border-left: 3px solid #2196F3;
+        }
+        
+        .conversation-item.waiting {
+            background-color: #fff3cd;
+        }
+        
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #e5ddd5;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-end;
+        }
+        
+        .message.customer {
+            justify-content: flex-start;
+        }
+        
+        .message.operator {
+            justify-content: flex-end;
+        }
+        
+        .message.bot {
+            justify-content: flex-start;
+        }
+        
+        .message-bubble {
+            max-width: 65%;
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        .message.customer .message-bubble {
+            background: white;
+            border-bottom-left-radius: 2px;
+        }
+        
+        .message.operator .message-bubble {
+            background: #dcf8c6;
+            border-bottom-right-radius: 2px;
+        }
+        
+        .message.bot .message-bubble {
+            background: #e3f2fd;
+            border-bottom-left-radius: 2px;
+        }
+        
+        .message-sender {
+            font-size: 0.8em;
+            color: #667781;
+            margin-bottom: 3px;
+            font-weight: 600;
+        }
+        
+        .message-time {
+            font-size: 0.75em;
+            color: #667781;
+            margin-top: 3px;
+            text-align: right;
+        }
+        
+        .input-area {
+            padding: 15px;
+            background: white;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .media-preview {
+            max-width: 200px;
+            max-height: 200px;
+            margin-top: 10px;
+            border-radius: 8px;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+        
+        .btn-file {
+            cursor: pointer;
+        }
+        
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+        
+        .status-online {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .status-offline {
+            background: #9e9e9e;
+            color: white;
+        }
+        
+        .badge-waiting {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #667781;
+        }
+        
+        .empty-state i {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-success">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-whatsapp"></i> Panel de Operadores WhatsApp
+            </span>
+            <div class="d-flex align-items-center">
+                <span class="text-white me-3" id="operatorName">Operador</span>
+                <span class="status-badge status-offline" id="connectionStatus">Desconectado</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-3">
+        <div class="row">
+            <div class="col-md-3 p-0">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">
+                            <i class="bi bi-chat-dots"></i> Conversaciones
+                            <span class="badge bg-warning float-end" id="waitingCount">0</span>
+                        </h6>
+                    </div>
+                    <div class="conversations-sidebar" id="conversationsList">
+                        <div class="empty-state">
+                            <i class="bi bi-inbox"></i>
+                            <p>No hay conversaciones activas</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-9">
+                <div class="card chat-container">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0" id="currentCustomerName">
+                                <i class="bi bi-person-circle"></i> Selecciona una conversación
+                            </h6>
+                            <small class="text-muted" id="currentCustomerPhone"></small>
+                        </div>
+                        <div>
+                            <!-- ⭐ NUEVO: Botón para devolver al bot -->
+                            <button class="btn btn-sm btn-outline-primary me-2" id="releaseToBotBtn" style="display: none;" title="Devolver control al bot">
+                                <i class="bi bi-robot"></i> Devolver al Bot
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" id="closeConversationBtn" style="display: none;">
+                                <i class="bi bi-x-circle"></i> Cerrar Chat
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="messages-area" id="messagesArea">
+                        <div class="empty-state">
+                            <i class="bi bi-chat-left-text"></i>
+                            <p>Selecciona una conversación para comenzar</p>
+                        </div>
+                    </div>
+                    
+                    <div class="input-area">
+                        <!-- ⭐ NUEVO: Botones para adjuntar archivos -->
+
+                        <!-- En la sección de input-area, agrega este botón -->
+                        <div class="mb-2">
+                            <div class="btn-group" role="group">
+                                <div class="file-input-wrapper">
+                                    <label class="btn btn-sm btn-outline-secondary btn-file" for="imageInput">
+                                        <i class="bi bi-image"></i> Imagen
+                                    </label>
+                                    <input type="file" id="imageInput" accept="image/*" disabled>
+                                </div>
+                                <div class="file-input-wrapper ms-2">
+                                    <label class="btn btn-sm btn-outline-secondary btn-file" for="documentInput">
+                                        <i class="bi bi-file-earmark"></i> Documento
+                                    </label>
+                                    <input type="file" id="documentInput" accept=".pdf,.doc,.docx,.txt" disabled>
+                                </div>
+                                <!-- ✅ NUEVO: Botón de videollamada -->
+                                <button class="btn btn-sm btn-outline-primary ms-2" id="videoCallBtn" disabled>
+                                    <i class="bi bi-camera-video"></i> Videollamada
+                                </button>
+                            </div>
+                            <div id="filePreview" class="mt-2" style="display: none;">
+                                <small class="text-muted" id="fileName"></small>
+                                <button class="btn btn-sm btn-link text-danger" id="clearFile">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                            
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="messageInput" 
+                                   placeholder="Escribe tu mensaje..." disabled>
+                            <button class="btn btn-success" id="sendBtn" disabled>
+                                <i class="bi bi-send-fill"></i> Enviar
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            <i class="bi bi-info-circle"></i> Presiona Enter para enviar
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="loginModal" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-person-badge"></i> Iniciar Sesión
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre del Operador</label>
+                        <input type="text" class="form-control" id="operatorNameInput" 
+                               placeholder="Ingresa tu nombre">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" id="loginBtn">
+                        <i class="bi bi-box-arrow-in-right"></i> Conectar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="notificationSound" style="display:none;">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZMA0PVanr7aZVEwlDm+Lxv24jBDWL0fPUgTUGHG3A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLgwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFA==" type="audio/wav">
+    </audio>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.0/signalr.min.js"></script>
+    
+    <script>
+        let connection;
+        let currentConversationId = null;
+        let operatorId = null;
+        let conversations = {};
+        let selectedFile = null;
+        let selectedFileType = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
+            loginModal.show();
+
+            document.getElementById('loginBtn').addEventListener('click', connectOperator);
+            document.getElementById('sendBtn').addEventListener('click', sendMessage);
+            document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') sendMessage();
+            });
+            
+            // ⭐ NUEVO: Eventos para archivos
+            document.getElementById('imageInput').addEventListener('change', handleImageSelect);
+            document.getElementById('documentInput').addEventListener('change', handleDocumentSelect);
+            document.getElementById('clearFile').addEventListener('click', clearFileSelection);
+            
+            // ⭐ NUEVO: Evento para devolver al bot
+            document.getElementById('releaseToBotBtn').addEventListener('click', releaseToBot);
+        });
+
+        async function connectOperator() {
+            const operatorName = document.getElementById('operatorNameInput').value.trim();
+            
+            if (!operatorName) {
+                alert('Por favor ingresa tu nombre');
+                return;
+            }
+
+            try {
+                connection = new signalR.HubConnectionBuilder()
+                    .withUrl("/chatHub")
+                    .withAutomaticReconnect()
+                    .build();
+
+                setupSignalREvents();
+
+                await connection.start();
+                console.log('✅ Conectado a SignalR');
+
+                await connection.invoke("RegisterOperator", operatorName);
+                
+                document.getElementById('operatorName').textContent = operatorName;
+                document.getElementById('connectionStatus').textContent = 'En Línea';
+                document.getElementById('connectionStatus').classList.remove('status-offline');
+                document.getElementById('connectionStatus').classList.add('status-online');
+
+                const loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+                loginModal.hide();
+
+                await connection.invoke("SendWaitingConversations");
+
+            } catch (error) {
+                console.error('❌ Error al conectar:', error);
+                alert('Error al conectar. Por favor recarga la página.');
+            }
+        }
+
+        function setupSignalREvents() {
+            connection.on("OperatorRegistered", (id) => {
+                operatorId = id;
+                console.log('Operador registrado:', id);
+            });
+
+            connection.on("WaitingConversations", (waitingConversations) => {
+                waitingConversations.forEach(conv => {
+                    addConversationToList(conv, true);
+                });
+                updateWaitingCount();
+            });
+
+            connection.on("NewConversationWaiting", (conversation) => {
+                addConversationToList(conversation, true);
+                playNotificationSound();
+                updateWaitingCount();
+            });
+
+            connection.on("NewConversationAssigned", (conversation) => {
+                addConversationToList(conversation, false);
+                selectConversation(conversation.conversationId);
+            });
+
+            connection.on("ConversationAssigned", (conversation) => {
+                addConversationToList(conversation, false);
+                selectConversation(conversation.conversationId);
+            });
+
+            connection.on("ConversationTaken", (conversationId) => {
+                const element = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+                if (element) element.remove();
+                updateWaitingCount();
+            });
+
+            connection.on("MessageSent", (conversationId, message) => {
+                if (conversations[conversationId]) {
+                    conversations[conversationId].messages.push(message);
+                    if (currentConversationId === conversationId) {
+                        displayMessage(message);
+                    }
+                }
+            });
+
+            connection.on("BotHandledMessage", (conversation) => {
+                addConversationToList(conversation, false);
+            });
+
+            connection.on("NewMessageReceived", (conversationId, message) => {
+                console.log('Nuevo mensaje recibido:', message);
+                if (conversations[conversationId]) {
+                    conversations[conversationId].messages.push(message);
+                    if (currentConversationId === conversationId) {
+                        displayMessage(message);
+                    }
+                    updateConversationPreview(conversationId, message.content);
+                }
+            });
+
+            connection.on("CustomerMessageReceived", (conversationId, message) => {
+                console.log('Mensaje del cliente para operador:', message);
+                if (conversations[conversationId]) {
+                    conversations[conversationId].messages.push(message);
+                    if (currentConversationId === conversationId) {
+                        displayMessage(message);
+                        playNotificationSound();
+                    }
+                }
+            });
+
+            // ⭐ NUEVO: Evento para conversación devuelta al bot
+            connection.on("ConversationReleasedToBot", (conversationId) => {
+                const element = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+                if (element) {
+                    element.remove();
+                }
+                
+                if (currentConversationId === conversationId) {
+                    currentConversationId = null;
+                    document.getElementById('messageInput').disabled = true;
+                    document.getElementById('sendBtn').disabled = true;
+                    document.getElementById('releaseToBotBtn').style.display = 'none';
+                    document.getElementById('closeConversationBtn').style.display = 'none';
+                    
+                    const messagesArea = document.getElementById('messagesArea');
+                    messagesArea.innerHTML = '<div class="empty-state"><i class="bi bi-chat-left-text"></i><p>Selecciona una conversación para comenzar</p></div>';
+                }
+                
+                console.log('✅ Conversación devuelta al bot:', conversationId);
+            });
+        }
+
+        function addConversationToList(conversation, isWaiting) {
+            if (conversations[conversation.conversationId]) return;
+            
+            conversations[conversation.conversationId] = conversation;
+
+            const listContainer = document.getElementById('conversationsList');
+            
+            const emptyState = listContainer.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+
+            const lastMessage = conversation.messages[conversation.messages.length - 1];
+            const lastMessageText = lastMessage ? lastMessage.content.substring(0, 50) : 'Sin mensajes';
+
+            const conversationHtml = `
+                <div class="conversation-item ${isWaiting ? 'waiting' : ''}" 
+                     data-conversation-id="${conversation.conversationId}"
+                     onclick="selectConversation('${conversation.conversationId}')">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <strong>${conversation.customerName}</strong>
+                            ${isWaiting ? '<span class="badge bg-warning badge-waiting ms-2">ESPERANDO</span>' : ''}
+                            <br>
+                            <small class="text-muted">${conversation.phoneNumber}</small>
+                            <p class="mb-0 mt-1 text-muted small">${lastMessageText}...</p>
+                        </div>
+                        <small class="text-muted">${formatTime(conversation.lastActivity)}</small>
+                    </div>
+                </div>
+            `;
+
+            listContainer.insertAdjacentHTML('afterbegin', conversationHtml);
+            updateWaitingCount();
+        }
+
+        async function selectConversation(conversationId) {
+            const conversation = conversations[conversationId];
+            if (!conversation) return;
+
+            if (conversation.status === 0) {
+                await connection.invoke("TakeConversation", conversationId);
+            }
+
+            currentConversationId = conversationId;
+
+            document.querySelectorAll('.conversation-item').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            const selectedElement = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+            if (selectedElement) {
+                selectedElement.classList.remove('waiting');
+                selectedElement.classList.add('active');
+            }
+
+            document.getElementById('currentCustomerName').innerHTML = 
+                `<i class="bi bi-person-circle"></i> ${conversation.customerName}`;
+            document.getElementById('currentCustomerPhone').textContent = conversation.phoneNumber;
+            
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            document.getElementById('closeConversationBtn').style.display = 'block';
+            document.getElementById('releaseToBotBtn').style.display = 'block';
+            
+            // ⭐ Habilitar inputs de archivos
+            document.getElementById('imageInput').disabled = false;
+            document.getElementById('documentInput').disabled = false;
+
+            displayMessages(conversation.messages);
+        }
+
+        function displayMessage(message) {
+        const messagesArea = document.getElementById('messagesArea');
+        
+        let messageClass = 'customer';
+        let senderName = message.sender;
+        
+        if (message.type === 1) {
+            messageClass = 'operator';
+        } else if (message.type === 2) {
+            messageClass = 'bot';
+            senderName = '🤖 ' + senderName;
+        }
+
+        let contentHtml = escapeHtml(message.content);
+        
+        // ✅ Mostrar multimedia si existe
+        if (message.mediaUrl) {
+            if (message.mediaType === 'image') {
+                contentHtml += `<br><img src="${message.mediaUrl}" class="media-preview" alt="Imagen">`;
+            } else if (message.mediaType === 'document') {
+                contentHtml += `<br><i class="bi bi-file-earmark"></i> <a href="${message.mediaUrl}" target="_blank">Ver documento</a>`;
+            } else if (message.mediaType === 'video_call') {
+                // ✅ NUEVO: Mostrar link de videollamada
+                contentHtml += `<br><a href="${message.mediaUrl}" target="_blank" class="btn btn-sm btn-primary mt-2">
+                    <i class="bi bi-camera-video"></i> Abrir videollamada
+                </a>`;
+            }
+        }
+
+        const messageHtml = `
+            <div class="message ${messageClass}">
+                <div class="message-bubble">
+                    <div class="message-sender">${senderName}</div>
+                    <div class="message-content">${contentHtml}</div>
+                    <div class="message-time">${formatTime(message.timestamp)}</div>
+                </div>
+            </div>
+        `;
+
+        messagesArea.insertAdjacentHTML('beforeend', messageHtml);
+        scrollToBottom();
+    }
+        
+        async function sendMessage() {
+            if (!currentConversationId) return;
+
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+
+            // ⭐ Enviar archivo si hay uno seleccionado
+            if (selectedFile) {
+                await sendFile();
+                return;
+            }
+
+            if (!message) return;
+
+            try {
+                await connection.invoke("SendMessageToCustomer", currentConversationId, message);
+                messageInput.value = '';
+                messageInput.focus();
+            } catch (error) {
+                console.error('Error al enviar mensaje:', error);
+                alert('Error al enviar el mensaje');
+            }
+        }
+
+        // ⭐ NUEVO: Manejar selección de imagen
+        function handleImageSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                selectedFileType = 'image';
+                document.getElementById('fileName').textContent = `📷 ${file.name}`;
+                document.getElementById('filePreview').style.display = 'block';
+            }
+        }
+
+        // ⭐ NUEVO: Manejar selección de documento
+        function handleDocumentSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                selectedFileType = 'document';
+                document.getElementById('fileName').textContent = `📄 ${file.name}`;
+                document.getElementById('filePreview').style.display = 'block';
+            }
+        }
+
+        // ⭐ NUEVO: Limpiar selección de archivo
+        function clearFileSelection() {
+            selectedFile = null;
+            selectedFileType = null;
+            document.getElementById('imageInput').value = '';
+            document.getElementById('documentInput').value = '';
+            document.getElementById('filePreview').style.display = 'none';
+        }
+
+        // ⭐ NUEVO: Enviar archivo
+        async function sendFile() {
+            if (!selectedFile || !currentConversationId) return;
+
+            try {
+                // En producción, aquí subirías el archivo a un servidor/CDN
+                // Por ahora simulamos con una URL
+                const fileUrl = URL.createObjectURL(selectedFile);
+                const caption = document.getElementById('messageInput').value.trim() || null;
+
+                if (selectedFileType === 'image') {
+                    await connection.invoke("SendImageToCustomer", currentConversationId, fileUrl, caption);
+                } else if (selectedFileType === 'document') {
+                    await connection.invoke("SendDocumentToCustomer", currentConversationId, fileUrl, selectedFile.name, caption);
+                }
+
+                document.getElementById('messageInput').value = '';
+                clearFileSelection();
+                
+                // ⚠️ NOTA: Para producción, necesitas subir el archivo a un servidor público
+                alert('⚠️ Nota: En producción, los archivos deben subirse a un servidor público (AWS S3, Cloudinary, etc.) para que WhatsApp pueda accederlos.');
+            } catch (error) {
+                console.error('Error al enviar archivo:', error);
+                alert('Error al enviar el archivo');
+            }
+        }
+
+        // ⭐ NUEVO: Devolver conversación al bot
+        async function releaseToBot() {
+            if (!currentConversationId) return;
+
+            if (confirm('¿Estás seguro de devolver esta conversación al bot? El bot continuará atendiendo al cliente automáticamente.')) {
+                try {
+                    await connection.invoke("ReleaseConversationToBot", currentConversationId);
+                    console.log('✅ Conversación devuelta al bot');
+                } catch (error) {
+                    console.error('Error al devolver al bot:', error);
+                    alert('Error al devolver la conversación al bot');
+                }
+            }
+        }
+
+        function updateWaitingCount() {
+            const waitingCount = document.querySelectorAll('.conversation-item.waiting').length;
+            document.getElementById('waitingCount').textContent = waitingCount;
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function scrollToBottom() {
+            const messagesArea = document.getElementById('messagesArea');
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        function playNotificationSound() {
+            const audio = document.getElementById('notificationSound');
+            audio.play().catch(e => console.log('No se pudo reproducir sonido'));
+        }
+
+        function updateConversationPreview(conversationId, messageText) {
+            const element = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+            if (element) {
+                const preview = element.querySelector('.text-muted.small');
+                if (preview) {
+                    preview.textContent = messageText.substring(0, 50) + '...';
+                }
+            }
+        }
+ 
+        // ✅ NUEVO: Función para subir imagen
+        async function handleImageSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                selectedFileType = 'image';
+                document.getElementById('fileName').textContent = `🖼️ ${file.name}`;
+                document.getElementById('filePreview').style.display = 'block';
+            }
+        }
+
+        // ✅ NUEVO: Función para subir documento
+        async function handleDocumentSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                selectedFileType = 'document';
+                document.getElementById('fileName').textContent = `📄 ${file.name}`;
+                document.getElementById('filePreview').style.display = 'block';
+            }
+        }
+
+        // ✅ NUEVO: Función para enviar archivo
+        async function sendFile() {
+            if (!selectedFile || !currentConversationId) return;
+
+            try {
+                // Mostrar mensaje de carga
+                const messageInput = document.getElementById('messageInput');
+                const caption = messageInput.value.trim() || null;
+                
+                // Crear FormData
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                // Subir archivo al servidor
+                const endpoint = selectedFileType === 'image' ? '/api/upload/image' : '/api/upload/document';
+                const uploadResponse = await fetch(endpoint, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) {
+                    const error = await uploadResponse.json();
+                    alert(`Error: ${error.message || 'No se pudo subir el archivo'}`);
+                    return;
+                }
+
+                const uploadResult = await uploadResponse.json();
+                
+                if (uploadResult.success && uploadResult.url) {
+                    // Enviar por WhatsApp usando SignalR
+                    if (selectedFileType === 'image') {
+                        await connection.invoke("SendImageToCustomer", currentConversationId, uploadResult.url, caption);
+                    } else if (selectedFileType === 'document') {
+                        await connection.invoke("SendDocumentToCustomer", 
+                            currentConversationId, 
+                            uploadResult.url, 
+                            uploadResult.filename || selectedFile.name, 
+                            caption);
+                    }
+
+                    messageInput.value = '';
+                    clearFileSelection();
+                    console.log('✅ Archivo enviado correctamente');
+                } else {
+                    alert('Error al procesar el archivo');
+                }
+            } catch (error) {
+                console.error('Error al enviar archivo:', error);
+                alert('Error al enviar el archivo. Por favor intenta nuevamente.');
+            }
+        }
+ 
+        // ✅ Habilitar botón de videollamada cuando se selecciona una conversación
+        async function selectConversation(conversationId) {
+            const conversation = conversations[conversationId];
+            if (!conversation) return;
+
+            if (conversation.status === 0) {
+                await connection.invoke("TakeConversation", conversationId);
+            }
+
+            currentConversationId = conversationId;
+
+            document.querySelectorAll('.conversation-item').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            const selectedElement = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+            if (selectedElement) {
+                selectedElement.classList.remove('waiting');
+                selectedElement.classList.add('active');
+            }
+
+            document.getElementById('currentCustomerName').innerHTML = 
+                `<i class="bi bi-person-circle"></i> ${conversation.customerName}`;
+            document.getElementById('currentCustomerPhone').textContent = conversation.phoneNumber;
+            
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            document.getElementById('closeConversationBtn').style.display = 'block';
+            document.getElementById('releaseToBotBtn').style.display = 'block';
+            
+            // ✅ Habilitar botones de archivos y videollamada
+            document.getElementById('imageInput').disabled = false;
+            document.getElementById('documentInput').disabled = false;
+            document.getElementById('videoCallBtn').disabled = false; // ✅ NUEVO
+
+            displayMessages(conversation.messages);
+        }
+
+        // ✅ NUEVO: Función para enviar videollamada
+        async function sendVideoCall() {
+            if (!currentConversationId) return;
+
+            if (confirm('¿Deseas enviar una invitación de videollamada al cliente?')) {
+                try {
+                    await connection.invoke("SendVideoCallToCustomer", currentConversationId);
+                    console.log('✅ Invitación de videollamada enviada');
+                } catch (error) {
+                    console.error('Error al enviar videollamada:', error);
+                    alert('Error al enviar la invitación de videollamada');
+                }
+            }
+        }
+
+        // ✅ Event listener para el botón de videollamada
+        document.addEventListener('DOMContentLoaded', function() {
+            // ... otros event listeners ...
+            
+            // ✅ NUEVO: Agregar event listener para videollamada
+            document.getElementById('videoCallBtn').addEventListener('click', sendVideoCall);
+        });
+
+
+    </script>
+</body>
+</html>
