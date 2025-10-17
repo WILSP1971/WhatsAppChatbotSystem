@@ -4,11 +4,14 @@ using CloudinaryDotNet.Actions;
 public class CloudinaryService
 {
     private readonly Cloudinary _cloudinary;
+    private readonly string _cloudName;
 
     public CloudinaryService(IConfiguration configuration)
     {
+        _cloudName = configuration["Cloudinary:CloudName"] ?? "";
+        
         var account = new Account(
-            configuration["Cloudinary:CloudName"],
+            _cloudName,
             configuration["Cloudinary:ApiKey"],
             configuration["Cloudinary:ApiSecret"]
         );
@@ -52,14 +55,23 @@ public class CloudinaryService
         {
             using var stream = new MemoryStream(fileBytes);
             
-            // ✅ Obtener extensión del archivo
+            // ✅ Obtener extensión
             var extension = Path.GetExtension(fileName).ToLower();
+            var fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
             
-            // ✅ Generar un nombre único CON extensión
-            var uniqueName = $"{Guid.NewGuid()}{extension}";
-            var publicId = $"whatsapp-docs/{uniqueName}";
+            // ✅ Sanitizar nombre de archivo (remover caracteres especiales)
+            var sanitizedName = new string(fileNameWithoutExt
+                .Where(c => char.IsLetterOrDigit(c) || c == '_' || c == '-')
+                .ToArray());
             
-            // ✅ CORRECTO: No usar ResourceType en RawUploadParams
+            if (string.IsNullOrEmpty(sanitizedName))
+            {
+                sanitizedName = "document";
+            }
+            
+            // ✅ Crear PublicId único pero con extensión
+            var publicId = $"whatsapp-docs/{sanitizedName}_{Guid.NewGuid().ToString().Substring(0, 8)}{extension}";
+            
             var uploadParams = new RawUploadParams
             {
                 File = new FileDescription(fileName, stream),
@@ -71,14 +83,30 @@ public class CloudinaryService
             
             if (uploadResult.StatusCode == System.Net.HttpStatusCode.OK)
             {
-                // ✅ La URL ya incluirá la extensión porque la pusimos en PublicId
-                var urlWithExtension = uploadResult.SecureUrl.ToString();
+                // ✅ Construir URL con flags específicos para WhatsApp
+                var baseUrl = uploadResult.SecureUrl.ToString();
                 
-                Console.WriteLine($"✅ Documento subido: {urlWithExtension}");
-                Console.WriteLine($"   📎 Tipo: {uploadResult.Format}");
+                // ✅ IMPORTANTE: Agregar flag fl_attachment para forzar descarga
+                var urlParts = baseUrl.Split(new[] { "/upload/" }, StringSplitOptions.None);
+                string finalUrl;
+                
+                if (urlParts.Length == 2)
+                {
+                    // Insertar flags después de /upload/
+                    finalUrl = $"{urlParts[0]}/upload/fl_attachment/{urlParts[1]}";
+                }
+                else
+                {
+                    finalUrl = baseUrl;
+                }
+                
+                Console.WriteLine($"✅ Documento subido exitosamente");
+                Console.WriteLine($"   🔗 URL original: {baseUrl}");
+                Console.WriteLine($"   🔗 URL con flags: {finalUrl}");
+                Console.WriteLine($"   📎 Nombre: {fileName}");
                 Console.WriteLine($"   📏 Tamaño: {uploadResult.Bytes} bytes");
                 
-                return urlWithExtension;
+                return finalUrl;
             }
 
             Console.WriteLine($"❌ Upload falló: {uploadResult.StatusCode}");
@@ -91,10 +119,10 @@ public class CloudinaryService
             return null;
         }
     }
-
-
-
+    
 }
+
+
 
 
 
