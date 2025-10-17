@@ -713,6 +713,81 @@
                 }
             }
         }
+ 
+        // ✅ NUEVO: Función para subir imagen
+        async function handleImageSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                selectedFileType = 'image';
+                document.getElementById('fileName').textContent = `🖼️ ${file.name}`;
+                document.getElementById('filePreview').style.display = 'block';
+            }
+        }
+
+        // ✅ NUEVO: Función para subir documento
+        async function handleDocumentSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                selectedFileType = 'document';
+                document.getElementById('fileName').textContent = `📄 ${file.name}`;
+                document.getElementById('filePreview').style.display = 'block';
+            }
+        }
+
+        // ✅ NUEVO: Función para enviar archivo
+        async function sendFile() {
+            if (!selectedFile || !currentConversationId) return;
+
+            try {
+                // Mostrar mensaje de carga
+                const messageInput = document.getElementById('messageInput');
+                const caption = messageInput.value.trim() || null;
+                
+                // Crear FormData
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                // Subir archivo al servidor
+                const endpoint = selectedFileType === 'image' ? '/api/upload/image' : '/api/upload/document';
+                const uploadResponse = await fetch(endpoint, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) {
+                    const error = await uploadResponse.json();
+                    alert(`Error: ${error.message || 'No se pudo subir el archivo'}`);
+                    return;
+                }
+
+                const uploadResult = await uploadResponse.json();
+                
+                if (uploadResult.success && uploadResult.url) {
+                    // Enviar por WhatsApp usando SignalR
+                    if (selectedFileType === 'image') {
+                        await connection.invoke("SendImageToCustomer", currentConversationId, uploadResult.url, caption);
+                    } else if (selectedFileType === 'document') {
+                        await connection.invoke("SendDocumentToCustomer", 
+                            currentConversationId, 
+                            uploadResult.url, 
+                            uploadResult.filename || selectedFile.name, 
+                            caption);
+                    }
+
+                    messageInput.value = '';
+                    clearFileSelection();
+                    console.log('✅ Archivo enviado correctamente');
+                } else {
+                    alert('Error al procesar el archivo');
+                }
+            } catch (error) {
+                console.error('Error al enviar archivo:', error);
+                alert('Error al enviar el archivo. Por favor intenta nuevamente.');
+            }
+        }
+ 
     </script>
 </body>
 </html>

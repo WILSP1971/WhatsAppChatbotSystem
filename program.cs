@@ -29,7 +29,7 @@ builder.Services.AddSingleton<ConversationManager>();
 builder.Services.AddSingleton<WhatsAppService>();
 builder.Services.AddSingleton<AIBotService>();
 builder.Services.AddSingleton<ApiIntegrationService>();
-
+builder.Services.AddSingleton<CloudinaryService>();
 var app = builder.Build();
 
 // Configurar middleware
