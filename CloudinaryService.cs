@@ -54,22 +54,24 @@ public class CloudinaryService
             
             // ✅ Obtener extensión del archivo
             var extension = Path.GetExtension(fileName).ToLower();
-            var publicId = $"whatsapp-docs/{Guid.NewGuid()}{extension}";
             
+            // ✅ Generar un nombre único CON extensión
+            var uniqueName = $"{Guid.NewGuid()}{extension}";
+            var publicId = $"whatsapp-docs/{uniqueName}";
+            
+            // ✅ CORRECTO: No usar ResourceType en RawUploadParams
             var uploadParams = new RawUploadParams
             {
                 File = new FileDescription(fileName, stream),
                 PublicId = publicId,
-                Overwrite = true,
-                // ✅ IMPORTANTE: Usar resource_type "raw" para documentos
-                ResourceType = ResourceType.Raw
+                Overwrite = true
             };
 
             var uploadResult = await _cloudinary.UploadAsync(uploadParams);
             
             if (uploadResult.StatusCode == System.Net.HttpStatusCode.OK)
             {
-                // ✅ Construir URL con extensión visible
+                // ✅ La URL ya incluirá la extensión porque la pusimos en PublicId
                 var urlWithExtension = uploadResult.SecureUrl.ToString();
                 
                 Console.WriteLine($"✅ Documento subido: {urlWithExtension}");
@@ -89,6 +91,9 @@ public class CloudinaryService
             return null;
         }
     }
+
+
+
 }
 
 
