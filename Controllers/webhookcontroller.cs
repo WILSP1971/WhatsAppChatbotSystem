@@ -69,26 +69,6 @@ public class WebhookController : ControllerBase
                 string? mediaUrl = null;
                 string? mediaType = null;
 
-                // ✅ Manejar respuestas de botones interactivos
-                if (messageType == "interactive")
-                {
-                    var interactive = message.GetProperty("interactive");
-                    var interactiveType = interactive.GetProperty("type").GetString();
-                    
-                    if (interactiveType == "button_reply")
-                    {
-                        messageBody = interactive.GetProperty("button_reply").GetProperty("id").GetString() ?? "";
-                    }
-                    else if (interactiveType == "list_reply")
-                    {
-                        messageBody = interactive.GetProperty("list_reply").GetProperty("id").GetString() ?? "";
-                    }
-                }
-                else if (messageType == "text")
-                {
-                    messageBody = message.GetProperty("text").GetProperty("body").GetString() ?? "";
-                }
-
                 // ⭐ Procesar diferentes tipos de mensajes
                 switch (messageType)
                 {
