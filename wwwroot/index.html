@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Operadores - WhatsApp Chatbot</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-green: #25D366;
+            --dark-green: #075E54;
+            --light-green: #E8F5E9;
+            --background: #F0F2F5;
+            --chat-bg: #E5DDD5;
+            --customer-bubble: #FFFFFF;
+            --operator-bubble: #DCF8C6;
+            --bot-bubble: #E3F2FD;
+            --text-primary: #1F2937;
+            --text-secondary: #6B7280;
+            --border: #E5E7EB;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ===== NAVBAR ===== */
+        .navbar {
+            background: linear-gradient(135deg, var(--dark-green) 0%, #128C7E 100%);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            padding: 1rem 2rem;
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: white !important;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-badge {
+            padding: 0.4rem 1rem;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .status-badge::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.9); }
+        }
+
+        .status-online {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .status-offline {
+            background: rgba(158, 158, 158, 0.2);
+            color: #9E9E9E;
+            border: 1px solid rgba(158, 158, 158, 0.3);
+        }
+
+        /* ===== MAIN CONTAINER ===== */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 76px);
+            gap: 0;
+            padding: 1.5rem;
+            max-width: 1920px;
+            margin: 0 auto;
+        }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            width: 380px;
+            background: white;
+            border-radius: 20px 0 0 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            background: linear-gradient(135deg, var(--primary-green) 0%, #128C7E 100%);
+            color: white;
+        }
+
+        .sidebar-header h6 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .waiting-badge {
+            background: rgba(255, 255, 255, 0.3);
+            padding: 0.3rem 0.8rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            animation: pulse-waiting 2s infinite;
+        }
+
+        @keyframes pulse-waiting {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.9; }
+        }
+
+        .conversations-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+
+        .conversations-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .conversations-list::-webkit-scrollbar-thumb {
+            background: #DDD;
+            border-radius: 10px;
+        }
+
+        .conversation-item {
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid transparent;
+            background: #FAFAFA;
+        }
+
+        .conversation-item:hover {
+            background: var(--light-green);
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(37, 211, 102, 0.15);
+        }
+
+        .conversation-item.active {
+            background: linear-gradient(135deg, rgba(37, 211, 102, 0.1) 0%, rgba(18, 140, 126, 0.1) 100%);
+            border-left: 4px solid var(--primary-green);
+            box-shadow: 0 4px 16px rgba(37, 211, 102, 0.2);
+        }
+
+        .conversation-item.waiting {
+            background: linear-gradient(135deg, #FFF9C4 0%, #FFF59D 100%);
+            border-left: 4px solid #FFC107;
+            animation: gentle-pulse 3s infinite;
+        }
+
+        @keyframes gentle-pulse {
+            0%, 100% { box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3); }
+            50% { box-shadow: 0 6px 20px rgba(255, 193, 7, 0.5); }
+        }
+
+        .conversation-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.3rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .conversation-phone {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .conversation-preview {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .conversation-time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* ===== CHAT AREA ===== */
+        .chat-area {
+            flex: 1;
+            background: white;
+            border-radius: 0 20px 20px 0;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 1.5rem 2rem;
+            background: linear-gradient(135deg, #FAFAFA 0%, #F5F5F5 100%);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header-info h6 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .chat-header-info small {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .chat-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-modern {
+            padding: 0.5rem 1.2rem;
+            border-radius: 12px;
+            border: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+        }
+
+        .btn-bot {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-bot:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-close-chat {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .btn-close-chat:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
+        }
+
+        /* ===== MESSAGES AREA ===== */
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+            background-image: 
+                repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(0,0,0,.02) 35px, rgba(0,0,0,.02) 70px);
+            background-color: var(--chat-bg);
+        }
+
+        .messages-area::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .messages-area::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+
+        .message {
+            display: flex;
+            margin-bottom: 1.5rem;
+            animation: messageSlideIn 0.3s ease;
+        }
+
+        @keyframes messageSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.customer {
+            justify-content: flex-start;
+        }
+
+        .message.operator {
+            justify-content: flex-end;
+        }
+
+        .message.bot {
+            justify-content: flex-start;
+        }
+
+        .message-bubble {
+            max-width: 65%;
+            padding: 1rem 1.2rem;
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            position: relative;
+        }
+
+        .message.customer .message-bubble {
+            background: var(--customer-bubble);
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.operator .message-bubble {
+            background: linear-gradient(135deg, #DCF8C6 0%, #C8E6C9 100%);
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.bot .message-bubble {
+            background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-sender {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .message-content {
+            color: var(--text-primary);
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            text-align: right;
+        }
+
+        .media-preview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 12px;
+            margin-top: 0.5rem;
+        }
+
+        /* ===== INPUT AREA ===== */
+        .input-area {
+            padding: 1.5rem 2rem;
+            background: white;
+            border-top: 1px solid var(--border);
+        }
+
+        .input-controls {
+            display: flex;
+            gap: 0.8rem;
+            margin-bottom: 1rem;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .btn-file {
+            padding: 0.6rem 1.2rem;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+            background: white;
+            color: var(--text-primary);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-file:hover {
+            background: var(--light-green);
+            border-color: var(--primary-green);
+            color: var(--dark-green);
+            transform: translateY(-2px);
+        }
+
+        .btn-video-call {
+            padding: 0.6rem 1.2rem;
+            border-radius: 12px;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-video-call:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .file-preview {
+            background: var(--light-green);
+            padding: 0.8rem;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .message-input-group {
+            display: flex;
+            gap: 0.8rem;
+            align-items: center;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 1rem 1.5rem;
+            border: 2px solid var(--border);
+            border-radius: 50px;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .message-input:focus {
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 4px rgba(37, 211, 102, 0.1);
+        }
+
+        .btn-send {
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            border: none;
+            background: linear-gradient(135deg, var(--primary-green) 0%, #128C7E 100%);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-send:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 4px 16px rgba(37, 211, 102, 0.4);
+        }
+
+        .btn-send:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ===== EMPTY STATE ===== */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-secondary);
+            text-align: center;
+            padding: 3rem;
+        }
+
+        .empty-state i {
+            font-size: 5rem;
+            margin-bottom: 1.5rem;
+            opacity: 0.2;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .empty-state p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+        }
+
+        /* ===== LOGIN MODAL ===== */
+        .modal-content {
+            border-radius: 20px;
+            border: none;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, var(--primary-green) 0%, #128C7E 100%);
+            color: white;
+            border: none;
+            padding: 2rem;
+        }
+
+        .modal-body {
+            padding: 2rem;
+        }
+
+        .form-control {
+            padding: 1rem;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 4px rgba(37, 211, 102, 0.1);
+            outline: none;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 1rem;
+            border-radius: 12px;
+            border: none;
+            background: linear-gradient(135deg, var(--primary-green) 0%, #128C7E 100%);
+            color: white;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(37, 211, 102, 0.4);
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 1200px) {
+            .sidebar {
+                width: 320px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                padding: 0.5rem;
+            }
+
+            .sidebar {
+                width: 100%;
+                border-radius: 20px 20px 0 0;
+                height: 40%;
+            }
+
+            .chat-area {
+                border-radius: 0 0 20px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container-fluid">
+            <span class="navbar-brand">
+                <i class="bi bi-whatsapp"></i>
+                Panel de Operadores
+            </span>
+            <div class="d-flex align-items-center gap-3">
+                <span class="text-white fw-semibold" id="operatorName">Operador</span>
+                <span class="status-badge status-offline" id="connectionStatus">Desconectado</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h6>
+                    <span><i class="bi bi-chat-dots"></i> Conversaciones</span>
+                    <span class="waiting-badge" id="waitingCount">0</span>
+                </h6>
+            </div>
+            <div class="conversations-list" id="conversationsList">
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <p>No hay conversaciones activas</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHAT AREA -->
+        <div class="chat-area">
+            <div class="chat-header">
+                <div class="chat-header-info">
+                    <h6 id="currentCustomerName">
+                        <i class="bi bi-person-circle"></i>
+                        Selecciona una conversación
+                    </h6>
+                    <small id="currentCustomerPhone"></small>
+                </div>
+                <div class="chat-actions">
+                    <button class="btn-modern btn-bot" id="releaseToBotBtn" style="display: none;">
+                        <i class="bi bi-robot"></i>
+                        Devolver al Bot
+                    </button>
+                    <button class="btn-modern btn-close-chat" id="closeConversationBtn" style="display: none;">
+                        <i class="bi bi-x-circle"></i>
+                        Cerrar Chat
+                    </button>
+                </div>
+            </div>
+
+            <div class="messages-area" id="messagesArea">
+                <div class="empty-state">
+                    <i class="bi bi-chat-left-text"></i>
+                    <p>Selecciona una conversación para comenzar</p>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <div class="input-controls">
+                    <div class="file-input-wrapper">
+                        <label class="btn-file" for="imageInput">
+                            <i class="bi bi-image"></i>
+                            Imagen
+                        </label>
+                        <input type="file" id="imageInput" accept="image/*" disabled>
+                    </div>
+                    
+                    <div class="file-input-wrapper">
+                        <label class="btn-file" for="documentInput">
+                            <i class="bi bi-file-earmark"></i>
+                            Documento
+                        </label>
+                        <input type="file" id="documentInput" accept=".pdf,.doc,.docx,.txt" disabled>
+                    </div>
+                    
+                    <button class="btn-video-call" id="videoCallBtn" disabled>
+                        <i class="bi bi-camera-video"></i>
+                        Videollamada
+                    </button>
+                </div>
+
+                <div id="filePreview" class="file-preview" style="display: none;">
+                    <small id="fileName"></small>
+                    <button class="btn btn-link text-danger" id="clearFile">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <div class="message-input-group">
+                    <input type="text" class="message-input" id="messageInput" 
+                           placeholder="Escribe tu mensaje..." disabled>
+                    <button class="btn-send" id="sendBtn" disabled>
+                        <i class="bi bi-send-fill"></i>
+                        Enviar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIN MODAL -->
+    <div class="modal fade" id="loginModal" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-person-badge"></i>
+                        Iniciar Sesión
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Nombre del Operador</label>
+                        <input type="text" class="form-control" id="operatorNameInput" 
+                               placeholder="Ingresa tu nombre">
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn-login" id="loginBtn">
+                        <i class="bi bi-box-arrow-in-right"></i>
+                        Conectar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="notificationSound" style="display:none;">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZMA0PVanr7aZVEwlDm+Lxv24jBDWL0fPUgTUGHG3A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLgwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPUgTUGHm7A7eKaLwwOVKjo7qhTFApBluPwwXAkBDKJ0vPTgzUGHm7A7eKaLwwOVKjo7qhTFA==" type="audio/wav">
+    </audio>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.0/signalr.min.js"></script>
+    
+    <script>
+        let connection;
+        let currentConversationId = null;
+        let operatorId = null;
+        let conversations = {};
+        let selectedFile = null;
+        let selectedFileType = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
+            loginModal.show();
+
+            document.getElementById('loginBtn').addEventListener('click', connectOperator);
+            document.getElementById('sendBtn').addEventListener('click', sendMessage);
+            document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') sendMessage();
+            });
+            
+            document.getElementById('imageInput').addEventListener('change', handleImageSelect);
+            document.getElementById('documentInput').addEventListener('change', handleDocumentSelect);
+            document.getElementById('clearFile').addEventListener('click', clearFileSelection);
+            document.getElementById('releaseToBotBtn').addEventListener('click', releaseToBot);
+            document.getElementById('videoCallBtn').addEventListener('click', sendVideoCall);
+        });
+
+        async function connectOperator() {
+            const operatorName = document.getElementById('operatorNameInput').value.trim();
+            
+            if (!operatorName) {
+                alert('Por favor ingresa tu nombre');
+                return;
+            }
+
+            try {
+                connection = new signalR.HubConnectionBuilder()
+                    .withUrl("/chatHub")
+                    .withAutomaticReconnect()
+                    .build();
+
+                setupSignalREvents();
+
+                await connection.start();
+                console.log('✅ Conectado a SignalR');
+
+                await connection.invoke("RegisterOperator", operatorName);
+                
+                document.getElementById('operatorName').textContent = operatorName;
+                document.getElementById('connectionStatus').textContent = 'En Línea';
+                document.getElementById('connectionStatus').classList.remove('status-offline');
+                document.getElementById('connectionStatus').classList.add('status-online');
+
+                const loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+                loginModal.hide();
+
+                await connection.invoke("SendWaitingConversations");
+
+            } catch (error) {
+                console.error('❌ Error al conectar:', error);
+                alert('Error al conectar. Por favor recarga la página.');
+            }
+        }
+
+        function setupSignalREvents() {
+            connection.on("OperatorRegistered", (id) => {
+                operatorId = id;
+                console.log('Operador registrado:', id);
+            });
+
+            connection.on("WaitingConversations", (waitingConversations) => {
+                waitingConversations.forEach(conv => {
+                    addConversationToList(conv, true);
+                });
+                updateWaitingCount();
+            });
+
+            connection.on("NewConversationWaiting", (conversation) => {
+                addConversationToList(conversation, true);
+                playNotificationSound();
+                updateWaitingCount();
+            });
+
+            connection.on("NewConversationAssigned", (conversation) => {
+                addConversationToList(conversation, false);
+                selectConversation(conversation.conversationId);
+            });
+
+            connection.on("ConversationAssigned", (conversation) => {
+                addConversationToList(conversation, false);
+                selectConversation(conversation.conversationId);
+            });
+
+            connection.on("ConversationTaken", (conversationId) => {
+                const element = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+                if (element) element.remove();
+                updateWaitingCount();
+            });
+
+            connection.on("MessageSent", (conversationId, message) => {
+                if (conversations[conversationId]) {
+                    conversations[conversationId].messages.push(message);
+                    if (currentConversationId === conversationId) {
+                        displayMessage(message);
+                    }
+                }
+            });
+
+            connection.on("BotHandledMessage", (conversation) => {
+                addConversationToList(conversation, false);
+            });
+
+            connection.on("NewMessageReceived", (conversationId, message) => {
+                console.log('Nuevo mensaje recibido:', message);
+                if (conversations[conversationId]) {
+                    conversations[conversationId].messages.push(message);
+                    if (currentConversationId === conversationId) {
+                        displayMessage(message);
+                    }
+                    updateConversationPreview(conversationId, message.content);
+                }
+            });
+
+            connection.on("CustomerMessageReceived", (conversationId, message) => {
+                console.log('Mensaje del cliente para operador:', message);
+                if (conversations[conversationId]) {
+                    conversations[conversationId].messages.push(message);
+                    if (currentConversationId === conversationId) {
+                        displayMessage(message);
+                        playNotificationSound();
+                    }
+                }
+            });
+
+            connection.on("ConversationReleasedToBot", (conversationId) => {
+                const element = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+                if (element) {
+                    element.remove();
+                }
+                
+                if (currentConversationId === conversationId) {
+                    currentConversationId = null;
+                    document.getElementById('messageInput').disabled = true;
+                    document.getElementById('sendBtn').disabled = true;
+                    document.getElementById('releaseToBotBtn').style.display = 'none';
+                    document.getElementById('closeConversationBtn').style.display = 'none';
+                    document.getElementById('videoCallBtn').disabled = true;
+                    document.getElementById('imageInput').disabled = true;
+                    document.getElementById('documentInput').disabled = true;
+                    
+                    const messagesArea = document.getElementById('messagesArea');
+                    messagesArea.innerHTML = '<div class="empty-state"><i class="bi bi-chat-left-text"></i><p>Selecciona una conversación para comenzar</p></div>';
+                }
+                
+                console.log('✅ Conversación devuelta al bot:', conversationId);
+            });
+        }
+
+        function addConversationToList(conversation, isWaiting) {
+            if (conversations[conversation.conversationId]) return;
+            
+            conversations[conversation.conversationId] = conversation;
+
+            const listContainer = document.getElementById('conversationsList');
+            
+            const emptyState = listContainer.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+
+            const lastMessage = conversation.messages[conversation.messages.length - 1];
+            const lastMessageText = lastMessage ? lastMessage.content.substring(0, 50) : 'Sin mensajes';
+
+            const conversationHtml = `
+                <div class="conversation-item ${isWaiting ? 'waiting' : ''}" 
+                     data-conversation-id="${conversation.conversationId}"
+                     onclick="selectConversation('${conversation.conversationId}')">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="conversation-name">
+                                ${conversation.customerName}
+                                ${isWaiting ? '<span class="badge bg-warning text-dark">ESPERANDO</span>' : ''}
+                            </div>
+                            <div class="conversation-phone">${conversation.phoneNumber}</div>
+                            <div class="conversation-preview">${lastMessageText}...</div>
+                        </div>
+                        <div class="conversation-time">${formatTime(conversation.lastActivity)}</div>
+                    </div>
+                </div>
+            `;
+
+            listContainer.insertAdjacentHTML('afterbegin', conversationHtml);
+            updateWaitingCount();
+        }
+
+        async function selectConversation(conversationId) {
+            const conversation = conversations[conversationId];
+            if (!conversation) return;
+
+            if (conversation.status === 0) {
+                await connection.invoke("TakeConversation", conversationId);
+            }
+
+            currentConversationId = conversationId;
+
+            document.querySelectorAll('.conversation-item').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            const selectedElement = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+            if (selectedElement) {
+                selectedElement.classList.remove('waiting');
+                selectedElement.classList.add('active');
+            }
+
+            document.getElementById('currentCustomerName').innerHTML = 
+                `<i class="bi bi-person-circle"></i> ${conversation.customerName}`;
+            document.getElementById('currentCustomerPhone').textContent = conversation.phoneNumber;
+            
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            document.getElementById('closeConversationBtn').style.display = 'block';
+            document.getElementById('releaseToBotBtn').style.display = 'block';
+            document.getElementById('imageInput').disabled = false;
+            document.getElementById('documentInput').disabled = false;
+            document.getElementById('videoCallBtn').disabled = false;
+
+            displayMessages(conversation.messages);
+        }
+
+        function displayMessages(messages) {
+            const messagesArea = document.getElementById('messagesArea');
+            messagesArea.innerHTML = '';
+
+            messages.forEach(message => {
+                displayMessage(message);
+            });
+
+            scrollToBottom();
+        }
+
+        function displayMessage(message) {
+            const messagesArea = document.getElementById('messagesArea');
+            
+            let messageClass = 'customer';
+            let senderName = message.sender;
+            
+            if (message.type === 1) {
+                messageClass = 'operator';
+            } else if (message.type === 2) {
+                messageClass = 'bot';
+                senderName = '🤖 ' + senderName;
+            }
+
+            let contentHtml = escapeHtml(message.content);
+            
+            if (message.mediaUrl) {
+                if (message.mediaType === 'image') {
+                    contentHtml += `<br><img src="${message.mediaUrl}" class="media-preview" alt="Imagen">`;
+                } else if (message.mediaType === 'document') {
+                    contentHtml += `<br><i class="bi bi-file-earmark"></i> <a href="${message.mediaUrl}" target="_blank">Ver documento</a>`;
+                } else if (message.mediaType === 'video_call') {
+                    contentHtml += `<br><a href="${message.mediaUrl}" target="_blank" class="btn btn-sm btn-primary mt-2">
+                        <i class="bi bi-camera-video"></i> Abrir videollamada
+                    </a>`;
+                }
+            }
+
+            const messageHtml = `
+                <div class="message ${messageClass}">
+                    <div class="message-bubble">
+                        <div class="message-sender">${senderName}</div>
+                        <div class="message-content">${contentHtml}</div>
+                        <div class="message-time">${formatTime(message.timestamp)}</div>
+                    </div>
+                </div>
+            `;
+
+            messagesArea.insertAdjacentHTML('beforeend', messageHtml);
+            scrollToBottom();
+        }
+
+        async function sendMessage() {
+            if (!currentConversationId) return;
+
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+
+            if (selectedFile) {
+                await sendFile();
+                return;
+            }
+
+            if (!message) return;
+
+            try {
+                await connection.invoke("SendMessageToCustomer", currentConversationId, message);
+                messageInput.value = '';
+                messageInput.focus();
+            } catch (error) {
+                console.error('Error al enviar mensaje:', error);
+                alert('Error al enviar el mensaje');
+            }
+        }
+
+        function handleImageSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                selectedFileType = 'image';
+                document.getElementById('fileName').textContent = `🖼️ ${file.name}`;
+                document.getElementById('filePreview').style.display = 'flex';
+            }
+        }
+
+        function handleDocumentSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                selectedFileType = 'document';
+                document.getElementById('fileName').textContent = `📄 ${file.name}`;
+                document.getElementById('filePreview').style.display = 'flex';
+            }
+        }
+
+        function clearFileSelection() {
+            selectedFile = null;
+            selectedFileType = null;
+            document.getElementById('imageInput').value = '';
+            document.getElementById('documentInput').value = '';
+            document.getElementById('filePreview').style.display = 'none';
+        }
+
+        async function sendFile() {
+            if (!selectedFile || !currentConversationId) return;
+
+            try {
+                const messageInput = document.getElementById('messageInput');
+                const caption = messageInput.value.trim() || null;
+                
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                const endpoint = selectedFileType === 'image' ? '/api/upload/image' : '/api/upload/document';
+                const uploadResponse = await fetch(endpoint, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) {
+                    const error = await uploadResponse.json();
+                    alert(`Error: ${error.message || 'No se pudo subir el archivo'}`);
+                    return;
+                }
+
+                const uploadResult = await uploadResponse.json();
+                
+                if (uploadResult.success && uploadResult.url) {
+                    if (selectedFileType === 'image') {
+                        await connection.invoke("SendImageToCustomer", currentConversationId, uploadResult.url, caption);
+                    } else if (selectedFileType === 'document') {
+                        await connection.invoke("SendDocumentToCustomer", 
+                            currentConversationId, 
+                            uploadResult.url, 
+                            uploadResult.filename || selectedFile.name, 
+                            caption);
+                    }
+
+                    messageInput.value = '';
+                    clearFileSelection();
+                    console.log('✅ Archivo enviado correctamente');
+                } else {
+                    alert('Error al procesar el archivo');
+                }
+            } catch (error) {
+                console.error('Error al enviar archivo:', error);
+                alert('Error al enviar el archivo. Por favor intenta nuevamente.');
+            }
+        }
+
+        async function releaseToBot() {
+            if (!currentConversationId) return;
+
+            if (confirm('¿Estás seguro de devolver esta conversación al bot? El bot continuará atendiendo al cliente automáticamente.')) {
+                try {
+                    await connection.invoke("ReleaseConversationToBot", currentConversationId);
+                    console.log('✅ Conversación devuelta al bot');
+                } catch (error) {
+                    console.error('Error al devolver al bot:', error);
+                    alert('Error al devolver la conversación al bot');
+                }
+            }
+        }
+
+        async function sendVideoCall() {
+            if (!currentConversationId) return;
+
+            if (confirm('¿Deseas enviar una invitación de videollamada al cliente?')) {
+                try {
+                    await connection.invoke("SendVideoCallToCustomer", currentConversationId);
+                    console.log('✅ Invitación de videollamada enviada');
+                } catch (error) {
+                    console.error('Error al enviar videollamada:', error);
+                    alert('Error al enviar la invitación de videollamada');
+                }
+            }
+        }
+
+        function updateWaitingCount() {
+            const waitingCount = document.querySelectorAll('.conversation-item.waiting').length;
+            document.getElementById('waitingCount').textContent = waitingCount;
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function scrollToBottom() {
+            const messagesArea = document.getElementById('messagesArea');
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        function playNotificationSound() {
+            const audio = document.getElementById('notificationSound');
+            audio.play().catch(e => console.log('No se pudo reproducir sonido'));
+        }
+
+        function updateConversationPreview(conversationId, messageText) {
+            const element = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+            if (element) {
+                const preview = element.querySelector('.conversation-preview');
+                if (preview) {
+                    preview.textContent = messageText.substring(0, 50) + '...';
+                }
+            }
+        }
+    </script>
+</body>
+</html>
